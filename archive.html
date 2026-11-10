@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>手账集 · 一本日记</title>
+  <meta name="description" content="一本日记的全部手账页，按月翻旧账。">
+  <meta name="theme-color" content="#fff9f2" id="meta-theme-color">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📔</text></svg>">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('riben-theme');
+        if (t !== 'light' && t !== 'dark') {
+          t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.dataset.theme = t;
+      } catch (e) { document.documentElement.dataset.theme = 'light'; }
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Noto+Serif+SC:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="page">
+    <header class="site-header">
+      <a class="logo" href="index.html">一本日记<span class="dot"> ●</span></a>
+      <nav class="site-nav" aria-label="主导航">
+        <a class="nav-pill" href="index.html">首页</a>
+        <a class="nav-pill is-active" href="archive.html" aria-current="page">手账集</a>
+        <a class="nav-pill" href="index.html#about">关于我</a>
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="切换到暗色模式" aria-pressed="false">
+          <svg class="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.4M12 19.1v2.4M4.3 4.3l1.7 1.7M18 18l1.7 1.7M2.5 12h2.4M19.1 12h2.4M4.3 19.7 6 18M18 6l1.7-1.7"/>
+          </svg>
+          <svg class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M20.5 14.2A8.5 8.5 0 1 1 9.8 3.5a7 7 0 1 0 10.7 10.7Z"/>
+          </svg>
+        </button>
+      </nav>
+    </header>
+
+    <main>
+      <section class="archive" aria-label="手账归档">
+        <h1 class="page-title">📚 手账集</h1>
+        <p class="page-lede">所有的日子都贴在这里了，按月翻旧账～</p>
+
+        <div class="month">
+          <h2 class="month-title"><span class="tape-label">2026 年 11 月</span></h2>
+          <ul class="archive-list">
+            <li><time datetime="2026-11-08">11.08</time><a href="post.html">初雪比往年早了一些</a><span class="tag t-pink">日常</span></li>
+            <li><time datetime="2026-11-03">11.03</time><a href="post.html">阳台变身小书房</a><span class="tag t-mint">生活改造</span></li>
+          </ul>
+        </div>
+
+        <div class="month">
+          <h2 class="month-title"><span class="tape-label">2026 年 10 月</span></h2>
+          <ul class="archive-list">
+            <li><time datetime="2026-10-26">10.26</time><a href="post.html">失败的番茄面也香</a><span class="tag t-blue">食物</span></li>
+            <li><time datetime="2026-10-19">10.19</time><a href="post.html">在旧书店捡到宝</a><span class="tag t-yellow">淘货</span></li>
+            <li><time datetime="2026-10-12">10.12</time><a href="post.html">楼下的猫又胖了一圈</a><span class="tag t-pink">动物</span></li>
+            <li><time datetime="2026-10-05">10.05</time><a href="post.html">今天的晚霞是橘子味</a><span class="tag t-blue">风景</span></li>
+          </ul>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span>♡ 2026 一本日记</span>
+      <span class="footer-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span>riben.icu · 每天贴一页</span>
+    </footer>
+  </div>
+
+  <script src="js/main.js"></script>
+</body>
+</html>

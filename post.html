@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>初雪比往年早了一些 · 一本日记</title>
+  <meta name="description" content="屋顶白白的好像撒了糖霜！一本日记 2026.11.08。">
+  <meta name="theme-color" content="#fff9f2" id="meta-theme-color">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📔</text></svg>">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('riben-theme');
+        if (t !== 'light' && t !== 'dark') {
+          t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.dataset.theme = t;
+      } catch (e) { document.documentElement.dataset.theme = 'light'; }
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Noto+Serif+SC:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="page">
+    <header class="site-header">
+      <a class="logo" href="index.html">一本日记<span class="dot"> ●</span></a>
+      <nav class="site-nav" aria-label="主导航">
+        <a class="nav-pill" href="index.html">首页</a>
+        <a class="nav-pill" href="archive.html">手账集</a>
+        <a class="nav-pill" href="index.html#about">关于我</a>
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="切换到暗色模式" aria-pressed="false">
+          <svg class="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.4M12 19.1v2.4M4.3 4.3l1.7 1.7M18 18l1.7 1.7M2.5 12h2.4M19.1 12h2.4M4.3 19.7 6 18M18 6l1.7-1.7"/>
+          </svg>
+          <svg class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M20.5 14.2A8.5 8.5 0 1 1 9.8 3.5a7 7 0 1 0 10.7 10.7Z"/>
+          </svg>
+        </button>
+      </nav>
+    </header>
+
+    <main>
+      <article class="post">
+        <span class="sticker s1 post-sticker">下雪啦！</span>
+        <header class="post-header">
+          <h1 class="post-title">初雪比往年早了一些</h1>
+          <div class="post-meta">
+            <time datetime="2026-11-08">2026.11.08 · 星期六</time>
+            <span class="tag t-pink">日常</span>
+            <span class="tag t-blue">城市</span>
+          </div>
+        </header>
+
+        <div class="post-body">
+          <p>早上拉开窗帘的时候愣了三秒钟——屋顶已经白了。明明气象台说周末才下的。</p>
+          <p>楼下的小孩比大人先知道这个消息。尖叫声穿透双层玻璃，比任何闹钟都管用。有个穿恐龙睡衣的小朋友直接在雪地里躺出了一个大字，被妈妈拎着帽子拽了回去。</p>
+          <p>我泡了杯热茶，搬椅子坐到窗边。雪落下来的时候没有声音，整座城市好像被调成了静音模式。路上行人走路都轻了，连汽车按喇叭都变得犹豫。</p>
+          <p>这样的天气适合原谅一切。适合把去年没回的消息回了，把搁置的手账补了，把「改天再说」改成「就今天吧」。</p>
+          <p>初雪快乐。❄️</p>
+        </div>
+
+        <footer class="post-foot">
+          <a class="read" href="archive.html">← 翻回手账集</a>
+          <a class="read" href="index.html">回到首页 →</a>
+        </footer>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <span>♡ 2026 一本日记</span>
+      <span class="footer-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span>riben.icu · 每天贴一页</span>
+    </footer>
+  </div>
+
+  <script src="js/main.js"></script>
+</body>
+</html>
