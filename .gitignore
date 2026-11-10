@@ -1,0 +1,10 @@
+# Rust
+server/target/
+server/.env
+
+# 部署环境文件（含密码）
+deploy/.env
+
+# 系统/编辑器
+.DS_Store
+*.swp
