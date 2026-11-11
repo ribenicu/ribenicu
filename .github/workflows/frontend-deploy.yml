@@ -1,0 +1,181 @@
+# 一本日记 · 前端构建与部署流水线
+#
+# 触发：main 分支上 frontend/ 或本文件变更，或手动触发。
+# 流程：parse（解析 FRONTEND_SERVERS_CONFIG）→ build（pnpm 构建 frontend/dist 并上传产物）
+#       → deploy（按 FRONTEND_SERVERS_CONFIG 逐机发布静态文件，先解压到临时目录再原子切换）。
+#
+# ===== 需在 GitHub 仓库 Settings 中配置 =====
+# Variables（Settings → Secrets and variables → Actions → Variables）：
+#   FRONTEND_SERVERS_CONFIG —— 前端发布服务器列表，JSON 数组（独立于后端的 SERVERS_CONFIG），
+#     每台服务器需配置 web_root（前端静态目录）。示例：
+#     [
+#       {
+#         "name": "prod-1",
+#         "addr": "1.2.3.4",
+#         "port": "22",
+#         "user": "deploy",
+#         "web_root": "/opt/smileyan-web"
+#       }
+#     ]
+# Secrets（Settings → Secrets and variables → Actions → Secrets）：
+#   FRONTEND_SSH_PRIVATE_KEY —— 各服务器 deploy 用户的 SSH 私钥（独立于后端的 SSH_PRIVATE_KEY，
+#     公钥需预先放到对应用户的 authorized_keys）
+#
+# 部署方式：tar 打包 dist → scp 到服务器临时文件 → 解压进 web_root.new →
+# 删除 web_root.old、原子 mv 切换，保留旧版本便于回滚；静态文件无需重启服务。
+
+name: frontend-deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend-deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# 同一时刻只跑一个部署，避免并发互踩
+concurrency:
+  group: frontend-deploy
+  cancel-in-progress: false
+
+env:
+  ARTIFACT_NAME: riben-frontend-dist
+
+jobs:
+  # ========== 流水线第一项：解析 FRONTEND_SERVERS_CONFIG ==========
+  parse:
+    name: 解析服务器配置
+    runs-on: ubuntu-latest
+    outputs:
+      servers: ${{ steps.parse.outputs.servers }}
+    steps:
+      - name: 解析 FRONTEND_SERVERS_CONFIG 变量
+        id: parse
+        run: |
+          set -euo pipefail
+          SERVERS='${{ vars.FRONTEND_SERVERS_CONFIG }}'
+          if [[ -z "$SERVERS" ]]; then
+            echo "::error::未配置变量 FRONTEND_SERVERS_CONFIG（Settings → Secrets and variables → Actions → Variables）"
+            exit 1
+          fi
+          echo "$SERVERS" | jq -e 'type == "array" and length > 0' >/dev/null \
+            || { echo "::error::FRONTEND_SERVERS_CONFIG 不是非空 JSON 数组"; exit 1; }
+          echo "$SERVERS" | jq -e 'all(.[]; (.web_root // "") != "")' >/dev/null \
+            || { echo "::error::FRONTEND_SERVERS_CONFIG 中每台服务器都必须配置 web_root"; exit 1; }
+          COUNT=$(echo "$SERVERS" | jq 'length')
+          echo "共 $COUNT 台服务器"
+          {
+            echo 'servers<<SERVERS_EOF'
+            printf '%s' "$SERVERS"
+            echo
+            echo 'SERVERS_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+  # ========== 构建：pnpm 安装依赖并产出 frontend/dist ==========
+  build:
+    name: 构建 frontend/dist
+    needs: parse
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: 安装依赖并构建
+        working-directory: frontend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+          ls -lh dist
+
+      - name: 打包 dist 产物
+        working-directory: frontend
+        run: |
+          tar czf "$RUNNER_TEMP/frontend-dist.tar.gz" -C dist .
+          ls -lh "$RUNNER_TEMP/frontend-dist.tar.gz"
+
+      - name: 上传 dist 产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ runner.temp }}/frontend-dist.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  # ========== 部署：按 FRONTEND_SERVERS_CONFIG 逐机发布静态文件 ==========
+  deploy:
+    name: 部署前端到 ${{ matrix.server.name }}
+    needs: [parse, build]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # 一台失败不影响其他机器
+      matrix:
+        server: ${{ fromJson(needs.parse.outputs.servers) }}
+    steps:
+      - name: 下载 dist 产物
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: dist
+
+      - name: 配置 SSH 私钥与主机密钥
+        env:
+          SERVER: ${{ toJson(matrix.server) }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' '${{ secrets.FRONTEND_SSH_PRIVATE_KEY }}' > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ADDR=$(jq -r .addr <<< "$SERVER")
+          PORT=$(jq -r .port <<< "$SERVER")
+          ssh-keyscan -p "$PORT" -T 10 "$ADDR" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: 上传静态文件并原子切换
+        env:
+          SERVER: ${{ toJson(matrix.server) }}
+        run: |
+          set -euo pipefail
+          NAME=$(jq -r .name     <<< "$SERVER")
+          ADDR=$(jq -r .addr     <<< "$SERVER")
+          PORT=$(jq -r .port     <<< "$SERVER")
+          USER=$(jq -r .user     <<< "$SERVER")
+          WEB_ROOT=$(jq -r .web_root <<< "$SERVER")
+          SSH="ssh -i ~/.ssh/deploy_key -p $PORT -o BatchMode=yes -o StrictHostKeyChecking=yes $USER@$ADDR"
+
+          echo "==> [$NAME] 上传静态文件到 $USER@$ADDR:$WEB_ROOT"
+          $SSH "mkdir -p '$(dirname "$WEB_ROOT")'"
+          # 先传临时文件，再原子替换，避免下载到一半的脏包
+          scp -i ~/.ssh/deploy_key -P "$PORT" -o StrictHostKeyChecking=yes \
+            dist/frontend-dist.tar.gz "$USER@$ADDR:$WEB_ROOT.tar.new"
+
+          $SSH "WEB_ROOT='$WEB_ROOT' sh -s" <<'REMOTE'
+            set -e
+            # 解压到临时目录
+            rm -rf "$WEB_ROOT.new"
+            mkdir -p "$WEB_ROOT.new"
+            tar xzf "$WEB_ROOT.tar.new" -C "$WEB_ROOT.new"
+            rm -f "$WEB_ROOT.tar.new"
+            # 原子切换：保留旧版本为 .old，便于出问题快速回滚
+            rm -rf "$WEB_ROOT.old"
+            [ -d "$WEB_ROOT" ] && mv "$WEB_ROOT" "$WEB_ROOT.old"
+            mv "$WEB_ROOT.new" "$WEB_ROOT"
+            echo "  已切换: $WEB_ROOT（旧版本备份在 $WEB_ROOT.old）"
+          REMOTE
+
+          # 校验 index.html 就位
+          $SSH "test -f '$WEB_ROOT/index.html'" \
+            || { echo "::error::[$NAME] $WEB_ROOT/index.html 不存在，部署异常"; exit 1; }
+          echo "==> [$NAME] 前端部署完成（静态文件无需重启服务）"
