@@ -132,9 +132,9 @@ jobs:
           strip target/release/riben-server
           ls -lh target/release/riben-server
 
-      - name: 压缩二进制（gzip -9 最小体积）
+      - name: 压缩二进制
         run: |
-          gzip -9 -c server/target/release/riben-server > "$RUNNER_TEMP/riben-server.gz"
+          gzip -c server/target/release/riben-server > "$RUNNER_TEMP/riben-server.gz"
           ls -lh "$RUNNER_TEMP/riben-server.gz"
 
       - name: 上传二进制产物

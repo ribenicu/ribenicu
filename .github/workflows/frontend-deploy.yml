@@ -2,7 +2,7 @@
 #
 # 触发：创建 v* tag 时与后端流水线并行触发（main 分支普通提交不触发），或手动触发。
 # 流程：parse（解析 FRONTEND_SERVERS_CONFIG，配置缺失直接退出）→ build（pnpm 构建 frontend/dist
-#       并 gzip -9 压缩上传产物）→ deploy（按 FRONTEND_SERVERS_CONFIG 逐机发布静态文件，覆盖原文件）。
+#       并压缩上传产物）→ deploy（按 FRONTEND_SERVERS_CONFIG 逐机发布静态文件，覆盖原文件）。
 #
 # ===== 需在 GitHub 仓库 Settings 中配置 =====
 # Variables（Settings → Secrets and variables → Actions → Variables）：
@@ -99,10 +99,10 @@ jobs:
           pnpm build
           ls -lh dist
 
-      - name: 打包 dist 产物（gzip -9 最小体积）
+      - name: 打包 dist 产物
         working-directory: frontend
         run: |
-          tar -I 'gzip -9' -czf "$RUNNER_TEMP/frontend-dist.tar.gz" -C dist .
+          tar czf "$RUNNER_TEMP/frontend-dist.tar.gz" -C dist .
           ls -lh "$RUNNER_TEMP/frontend-dist.tar.gz"
 
       - name: 上传 dist 产物
