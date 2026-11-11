@@ -161,11 +161,6 @@ jobs:
 
           $SSH "WEB_ROOT='$WEB_ROOT' sh -s" <<'REMOTE'
             set -e
-            # 解压到临时目录
-            rm -rf "$WEB_ROOT.new"
-            mkdir -p "$WEB_ROOT.new"
-            tar xzf "$WEB_ROOT.tar.new" -C "$WEB_ROOT.new"
-            rm -f "$WEB_ROOT.tar.new"
             # 直接替换：解压到临时目录后删除旧目录、原子切换，不保留 .old 备份
             rm -rf "$WEB_ROOT.new"
             mkdir -p "$WEB_ROOT.new"
