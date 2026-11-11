@@ -2,6 +2,8 @@
 
 > 项目现状：纯静态站点（`index.html` / `post.html` / `archive.html` + `css/style.css` + `js/main.js`），手账风格个人博客，域名 riben.icu。
 > 目标：引入 **Rust 后端 + MySQL + Redis**，实现博客文章的动态管理、评论系统（含管理/审核）、缓存加速，并保留现有前端视觉风格。
+>
+> **更新（M6 之后）**：前端已由原生 JS 重写为 **Vite + React 18 + TypeScript**（MPA，`frontend/`，URL 不变），§1.2 的"前端框架化"已落地。
 
 ---
 

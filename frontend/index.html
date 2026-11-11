@@ -22,76 +22,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Noto+Serif+SC:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css">
 </head>
 <body data-page="home">
-  <div class="page">
-    <!-- ============ 页头 ============ -->
-    <header class="site-header">
-      <a class="logo" href="index.html">一本日记<span class="dot"> ●</span></a>
-      <nav class="site-nav" aria-label="主导航">
-        <a class="nav-pill is-active" href="index.html" aria-current="page">首页</a>
-        <a class="nav-pill" href="#entries">手账集</a>
-        <a class="nav-pill" href="#about">关于我</a>
-        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="切换到暗色模式" aria-pressed="false">
-          <svg class="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.4M12 19.1v2.4M4.3 4.3l1.7 1.7M18 18l1.7 1.7M2.5 12h2.4M19.1 12h2.4M4.3 19.7 6 18M18 6l1.7-1.7"/>
-          </svg>
-          <svg class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M20.5 14.2A8.5 8.5 0 1 1 9.8 3.5a7 7 0 1 0 10.7 10.7Z"/>
-          </svg>
-        </button>
-      </nav>
-    </header>
-
-    <!-- ============ 首屏 ============ -->
-    <section class="hero">
-      <h1 class="hero-title"><span class="w1">一本</span><span class="w2">日</span><span class="w3">记</span></h1>
-      <svg class="squiggle" width="180" height="14" viewBox="0 0 180 14" aria-hidden="true">
-        <path d="M2 8 Q 14 2, 26 8 T 50 8 T 74 8 T 98 8 T 122 8 T 146 8 T 170 8" fill="none" stroke="var(--pink)" stroke-width="3" stroke-linecap="round"/>
-      </svg>
-      <p class="hero-lede">把每天的小确幸剪下来、贴上去、画个圈！这里是我的生活手账：吃了一顿好饭、看到一次晚霞、捡到一句好听的话，统统收进来～</p>
-      <ul class="hero-badges" aria-label="站点小档案">
-        <li class="badge b-pink">📔 <span id="badge-days">已记录 … 天</span></li>
-        <li class="badge b-mint">🌈 持续更新中</li>
-        <li class="badge b-blue">✂️ 手账风格</li>
-      </ul>
-    </section>
-
-    <!-- ============ 日记卡片 ============ -->
-    <main>
-      <section class="entries" id="entries" aria-label="最新日记">
-        <h2 class="section-title"><span class="marker">✏️</span> 最新一页</h2>
-
-        <!-- JS 渲染 /api/posts?limit=6；加载前显示同风格骨架 -->
-        <div class="card-grid"></div>
-
-        <div class="more-wrap">
-          <a class="btn-more" href="archive.html">📖 翻翻旧账（归档）</a>
-        </div>
-      </section>
-
-      <!-- ============ 关于 ============ -->
-      <section class="about" id="about" aria-label="关于本站">
-        <div class="about-card">
-          <span class="about-sticker">关于我</span>
-          <p class="about-text">你好呀，我是这本日记的主人。白天写代码，晚上写手账，相信「写下来就不会忘记」。这里不追热点、不设清单，只收录生活里那些微小而确定的快乐。</p>
-          <p class="about-sign">—— 写于 riben.icu ✍️</p>
-        </div>
-      </section>
-    </main>
-
-    <!-- ============ 页脚 ============ -->
-    <footer class="site-footer">
-      <span>♡ 2026 一本日记</span>
-      <span class="footer-dots" aria-hidden="true"><i></i><i></i><i></i></span>
-      <span>riben.icu · 每天贴一页</span>
-    </footer>
-  </div>
-
-  <script src="js/api.js"></script>
-  <script src="js/render.js"></script>
-  <script src="js/theme.js"></script>
-  <script src="js/main.js"></script>
+  <div id="root"></div>
+  <script type="module" src="/src/main-home.tsx"></script>
 </body>
 </html>

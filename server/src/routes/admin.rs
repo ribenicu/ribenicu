@@ -125,15 +125,19 @@ async fn delete_post(
 #[derive(Debug, Deserialize)]
 pub struct CommentQuery {
     pub status: Option<i8>,
-    #[serde(flatten)]
-    pub page: PageQuery,
+    pub page: Option<u32>,
+    pub per_page: Option<u32>,
 }
 
 async fn admin_list_comments(
     State(state): State<AppState>,
     Query(q): Query<CommentQuery>,
 ) -> AppResult<models::ApiResponse<serde_json::Value>> {
-    let (page, per_page) = q.page.normalize();
+    let (page, per_page) = PageQuery {
+        page: q.page,
+        per_page: q.per_page,
+    }
+    .normalize();
     let status = q.status.filter(|s| (0..=2).contains(s));
     let (list, total) = comment_svc::admin_list(&state, status, page, per_page).await?;
     let pending = comment_svc::pending_count(&state).await?;

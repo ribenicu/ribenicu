@@ -78,7 +78,7 @@ services:
       # Caddyfile 首行 {$SITE_ADDRESS}；本地联调设为 :80，生产为 riben.icu（自动 TLS）
       SITE_ADDRESS: ${SITE_ADDRESS:-riben.icu}
     volumes:
-      - ../frontend:/srv/frontend:ro
+      - ../frontend/dist:/srv/frontend:ro   # 前端为 Vite 构建产物（部署前先 pnpm build）
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config

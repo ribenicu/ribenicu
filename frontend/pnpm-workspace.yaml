@@ -1,0 +1,3 @@
+# pnpm 配置：放行 esbuild 的安装脚本（pnpm 10 默认拦截所有构建脚本）
+allowBuilds:
+  esbuild: true
