@@ -1,8 +1,8 @@
 # 一本日记 · 前端构建与部署流水线
 #
-# 触发：main 分支上 frontend/ 或本文件变更，或手动触发。
-# 流程：parse（解析 FRONTEND_SERVERS_CONFIG）→ build（pnpm 构建 frontend/dist 并上传产物）
-#       → deploy（按 FRONTEND_SERVERS_CONFIG 逐机发布静态文件，先解压到临时目录再原子切换）。
+# 触发：创建 v* tag 时与后端流水线并行触发（main 分支普通提交不触发），或手动触发。
+# 流程：parse（解析 FRONTEND_SERVERS_CONFIG，配置缺失直接退出）→ build（pnpm 构建 frontend/dist
+#       并 gzip -9 压缩上传产物）→ deploy（按 FRONTEND_SERVERS_CONFIG 逐机发布静态文件，覆盖原文件）。
 #
 # ===== 需在 GitHub 仓库 Settings 中配置 =====
 # Variables（Settings → Secrets and variables → Actions → Variables）：
@@ -28,10 +28,8 @@ name: frontend-deploy
 
 on:
   push:
-    branches: [main]
-    paths:
-      - "frontend/**"
-      - ".github/workflows/frontend-deploy.yml"
+    tags:
+      - "v*"
   workflow_dispatch:
 
 permissions:
@@ -81,14 +79,14 @@ jobs:
     needs: parse
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 10
 
       - name: 安装 Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 20
           cache: pnpm
@@ -101,14 +99,14 @@ jobs:
           pnpm build
           ls -lh dist
 
-      - name: 打包 dist 产物
+      - name: 打包 dist 产物（gzip -9 最小体积）
         working-directory: frontend
         run: |
-          tar czf "$RUNNER_TEMP/frontend-dist.tar.gz" -C dist .
+          tar -I 'gzip -9' -czf "$RUNNER_TEMP/frontend-dist.tar.gz" -C dist .
           ls -lh "$RUNNER_TEMP/frontend-dist.tar.gz"
 
       - name: 上传 dist 产物
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ env.ARTIFACT_NAME }}
           path: ${{ runner.temp }}/frontend-dist.tar.gz
@@ -126,7 +124,7 @@ jobs:
         server: ${{ fromJson(needs.parse.outputs.servers) }}
     steps:
       - name: 下载 dist 产物
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ${{ env.ARTIFACT_NAME }}
           path: dist
