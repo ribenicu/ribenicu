@@ -9,6 +9,14 @@ cp .env.example .env   # 配置 DATABASE_URL / REDIS_URL / ADMIN_PASSWORD 等
 cargo run              # 默认 0.0.0.0:9015；启动时自动执行 migrations/
 ```
 
+> **注意：migration 只建表，不建库。** 本地直连 MySQL 开发时需先手动创建数据库，否则服务会以 lazy 池静默启动（不报错退出），随后 migration 失败、接口不可用：
+>
+> ```sql
+> CREATE DATABASE riben CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+> ```
+>
+> 使用根目录 `deploy/docker-compose.yml` 部署时无需此步骤——compose 的 `MYSQL_DATABASE` 变量会在 MySQL 容器首次启动时自动创建数据库。
+
 首次启动且 `users` 表为空时按 `ADMIN_USERNAME` / `ADMIN_PASSWORD` 播种管理员；`SEED_DEMO=true`（默认）且文章表为空时写入 6 篇演示文章（原静态站内容）。
 
 ## 质量门槛
