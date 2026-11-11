@@ -14,6 +14,7 @@ riben/
 │   ├── migrations/    # sqlx migration（启动时自动执行，内嵌于二进制）
 │   └── src/           # routes / services / middleware / models
 ├── deploy/            # 部署配置：Dockerfile + docker-compose + Caddyfile
+├── .github/workflows/ # CI/CD：backend-deploy.yml（后端打包部署流水线）
 └── docs/
     └── development-plan.md   # 设计与开发计划（M0–M6 里程碑）
 ```
@@ -40,9 +41,9 @@ riben/
 # 后端（自动跑 migration；首次启动按 .env 播种管理员/演示文章）
 cd server
 cp .env.example .env       # 修改 DATABASE_URL / ADMIN_PASSWORD 等
-cargo run                  # 默认 :3000
+cargo run                  # 默认 :9015
 
-# 前端（另开终端；Vite dev 会把 /api/* 代理到 :3000）
+# 前端（另开终端；Vite dev 会把 /api/* 代理到 :9015）
 cd frontend
 pnpm install
 pnpm dev                   # http://localhost:5173
@@ -67,6 +68,58 @@ cargo test          # slug / 摘要 / 评论树 / Markdown 消毒等单元测试
 cd ../frontend
 pnpm build          # tsc --noEmit 类型检查 + vite build
 ```
+
+## CI/CD 流水线（GitHub Actions）
+
+后端打包与部署流水线：[.github/workflows/backend-deploy.yml](.github/workflows/backend-deploy.yml)。
+
+- **触发**：`main` 分支上 `server/**` 或该 workflow 文件变更时自动触发，也可在 Actions 页面手动触发（workflow_dispatch）。
+- **流程**：`check-ssh`（逐台验证 SSH 登录）→ `build`（Ubuntu 上 cargo Release 编译并上传产物）→ `deploy`（按 `SERVERS_CONFIG` 逐机部署，一台失败不影响其他机器）。
+- **部署方式**：scp 上传二进制到 `deploy_path` 并原子替换（先传 `.new` 再 `mv`），写入 `deploy_path/.env`，优先 `systemctl restart riben-server`，无 systemd 单元时 `pkill + nohup` 重启，最后探测 `http://127.0.0.1:<app_port>/api/health` 确认启动成功。
+- **并发控制**：同一时刻只跑一个部署（concurrency），避免并发互踩。
+
+### 配置方法
+
+在 GitHub 仓库 **Settings → Secrets and variables → Actions** 中配置：
+
+**Variables**（明文变量）：
+
+| 变量 | 必填 | 说明 |
+|---|---|---|
+| `SERVERS_CONFIG` | 是 | 服务器列表，JSON 数组（示例见下） |
+| `SESSION_TTL_DAYS` | 否 | Session 有效期天数，默认 7 |
+| `COOKIE_SECURE` | 否 | 默认 true（HTTPS 部署）；纯 HTTP 内网部署时设 false |
+
+`SERVERS_CONFIG` 示例：
+
+```json
+[
+  {
+    "name": "prod-1",
+    "addr": "1.2.3.4",
+    "port": "22",
+    "user": "deploy",
+    "deploy_path": "/opt/smileyan-backend",
+    "app_port": "9015"
+  }
+]
+```
+
+**Secrets**（机密变量）：
+
+| 密钥 | 说明 |
+|---|---|
+| `SSH_PRIVATE_KEY` | 各服务器 deploy 用户的 SSH 私钥（公钥需预先放到对应用户的 `~/.ssh/authorized_keys`） |
+| `DATABASE_URL` | MySQL 连接串，如 `mysql://user:pass@host:3306/riben` |
+| `REDIS_URL` | Redis 连接串，如 `redis://:pass@host:6379` |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | 首次播种的管理员账号（仅首次启动写入） |
+
+### 服务器前提
+
+- `user` 能通过 `SSH_PRIVATE_KEY` 免密登录（流水线使用 `BatchMode` 非交互登录）。
+- `user` 对 `deploy_path` 有读写权限（流水线会 `mkdir -p` 并写入二进制与 `.env`）。
+- 若希望用 systemd 管理（推荐）：预先在服务器上创建 `riben-server` systemd 单元，并给该用户 `sudo systemctl restart riben-server` 的免密权限；否则流水线自动回退为 `pkill + nohup`（日志写入 `deploy_path/app.log`）。
+- 服务器需装有 `curl`（健康检查用）。
 
 ## 常用入口
 

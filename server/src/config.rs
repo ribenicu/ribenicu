@@ -34,7 +34,7 @@ impl Config {
             port: std::env::var("PORT")
                 .ok()
                 .and_then(|p| p.parse().ok())
-                .unwrap_or(3000),
+                .unwrap_or(9015),
             database_url: std::env::var("DATABASE_URL")
                 .unwrap_or_else(|_| "mysql://riben:riben@127.0.0.1:3306/riben".into()),
             redis_url: std::env::var("REDIS_URL")

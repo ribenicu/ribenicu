@@ -1,0 +1,244 @@
+# 一本日记 · 后端打包与部署流水线
+#
+# 触发：main 分支上 server/ 或本文件变更，或手动触发。
+# 流程：check-ssh（检查能否正常登录远程服务器）→ build（cargo 打包）→ deploy（逐机部署 + 健康检查）。
+#
+# ===== 需在 GitHub 仓库 Settings 中配置 =====
+# Variables（仓库或环境变量，Settings → Secrets and variables → Actions → Variables）：
+#   SERVERS_CONFIG  —— 服务器列表，JSON 数组，示例：
+#     [
+#       {
+#         "name": "prod-1",
+#         "addr": "1.2.3.4",
+#         "port": "22",
+#         "user": "deploy",
+#         "deploy_path": "/opt/smileyan-backend",
+#         "app_port": "9015"
+#       }
+#     ]
+#   SESSION_TTL_DAYS —— 可选，默认 7
+#   COOKIE_SECURE    —— 可选，默认 true（HTTPS 部署）
+#
+# Secrets（Settings → Secrets and variables → Actions → Secrets）：
+#   SSH_PRIVATE_KEY —— 各服务器 deploy 用户的 SSH 私钥（公钥需预先放到对应用户的 authorized_keys）
+#   DATABASE_URL    —— MySQL 连接串，如 mysql://user:pass@host:3306/riben
+#   REDIS_URL       —— Redis 连接串，如 redis://:pass@host:6379
+#   ADMIN_USERNAME  —— 首次播种管理员用户名
+#   ADMIN_PASSWORD  —— 首次播种管理员密码
+#
+# 部署方式：scp 上传二进制到 deploy_path 并原子替换，写入 deploy_path/.env，
+# 优先 systemctl restart riben-server，无 systemd 单元时 pkill + nohup 重启，
+# 最后探测 http://127.0.0.1:<app_port>/api/health 确认启动成功。
+
+name: backend-deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "server/**"
+      - ".github/workflows/backend-deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# 同一时刻只跑一个部署，避免并发互踩
+concurrency:
+  group: backend-deploy
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  ARTIFACT_NAME: riben-server-bin
+
+jobs:
+  # ========== 流水线第一项：检查能否正常登录远程服务器 ==========
+  check-ssh:
+    name: 检查远程服务器 SSH 登录
+    runs-on: ubuntu-latest
+    outputs:
+      servers: ${{ steps.parse.outputs.servers }}
+    steps:
+      - name: 解析 SERVERS_CONFIG 变量
+        id: parse
+        run: |
+          set -euo pipefail
+          SERVERS='${{ vars.SERVERS_CONFIG }}'
+          if [[ -z "$SERVERS" ]]; then
+            echo "::error::未配置变量 SERVERS_CONFIG（Settings → Secrets and variables → Actions → Variables）"
+            exit 1
+          fi
+          echo "$SERVERS" | jq -e 'type == "array" and length > 0' >/dev/null \
+            || { echo "::error::SERVERS_CONFIG 不是非空 JSON 数组"; exit 1; }
+          COUNT=$(echo "$SERVERS" | jq 'length')
+          echo "共 $COUNT 台服务器"
+          {
+            echo 'servers<<SERVERS_EOF'
+            printf '%s' "$SERVERS"
+            echo
+            echo 'SERVERS_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: 配置 SSH 私钥
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' '${{ secrets.SSH_PRIVATE_KEY }}' > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+      - name: 逐台检查 SSH 登录
+        env:
+          SERVERS: ${{ vars.SERVERS_CONFIG }}
+        run: |
+          set -euo pipefail
+          FAIL=0
+          while read -r name addr port user; do
+            echo "==> 检查 $name ($user@$addr:$port)"
+            ssh-keyscan -p "$port" -T 10 "$addr" >> ~/.ssh/known_hosts 2>/dev/null \
+              || { echo "::error::$name: 无法获取主机密钥（addr=$addr port=$port）"; FAIL=1; continue; }
+            if ssh -i ~/.ssh/deploy_key -p "$port" \
+                -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes \
+                "$user@$addr" 'echo "  登录成功: $(hostname)"'; then
+              echo "  $name SSH 登录正常"
+            else
+              echo "::error::$name SSH 登录失败（检查 SSH_PRIVATE_KEY 与 $user 的 authorized_keys）"
+              FAIL=1
+            fi
+          done < <(jq -r '.[] | "\(.name) \(.addr) \(.port) \(.user)"' <<< "$SERVERS")
+          [[ "$FAIL" -eq 0 ]] || exit 1
+
+  # ========== 打包：Release 编译并上传产物 ==========
+  build:
+    name: 打包 riben-server
+    needs: check-ssh
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Rust toolchain
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - name: 缓存 cargo 依赖
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: server
+
+      - name: Release 编译
+        working-directory: server
+        run: |
+          cargo build --release
+          strip target/release/riben-server
+          ls -lh target/release/riben-server
+
+      - name: 上传二进制产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: server/target/release/riben-server
+          if-no-files-found: error
+          retention-days: 7
+
+  # ========== 部署：按 SERVERS_CONFIG 逐机发布 ==========
+  deploy:
+    name: 部署到 ${{ matrix.server.name }}
+    needs: [check-ssh, build]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # 一台失败不影响其他机器
+      matrix:
+        server: ${{ fromJson(needs.check-ssh.outputs.servers) }}
+    steps:
+      - name: 下载二进制产物
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: dist
+
+      - name: 配置 SSH 私钥与主机密钥
+        env:
+          SERVER: ${{ toJson(matrix.server) }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' '${{ secrets.SSH_PRIVATE_KEY }}' > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ADDR=$(jq -r .addr <<< "$SERVER")
+          PORT=$(jq -r .port <<< "$SERVER")
+          ssh-keyscan -p "$PORT" -T 10 "$ADDR" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: 上传二进制与 .env 并重启服务
+        env:
+          SERVER: ${{ toJson(matrix.server) }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          SESSION_TTL_DAYS: ${{ vars.SESSION_TTL_DAYS }}
+          COOKIE_SECURE: ${{ vars.COOKIE_SECURE }}
+        run: |
+          set -euo pipefail
+          NAME=$(jq -r .name     <<< "$SERVER")
+          ADDR=$(jq -r .addr     <<< "$SERVER")
+          PORT=$(jq -r .port     <<< "$SERVER")
+          USER=$(jq -r .user     <<< "$SERVER")
+          DPATH=$(jq -r .deploy_path <<< "$SERVER")
+          APP_PORT=$(jq -r .app_port <<< "$SERVER")
+          SSH="ssh -i ~/.ssh/deploy_key -p $PORT -o BatchMode=yes -o StrictHostKeyChecking=yes $USER@$ADDR"
+
+          echo "==> [$NAME] 上传二进制到 $USER@$ADDR:$DPATH"
+          $SSH "mkdir -p '$DPATH' && command -v curl >/dev/null || true"
+          # 先传临时文件，再原子替换，避免下载到一半的脏二进制
+          scp -i ~/.ssh/deploy_key -P "$PORT" -o StrictHostKeyChecking=yes \
+            dist/riben-server "$USER@$ADDR:$DPATH/riben-server.new"
+          $SSH "chmod +x '$DPATH/riben-server.new' \
+            && mv -f '$DPATH/riben-server.new' '$DPATH/riben-server'"
+
+          echo "==> [$NAME] 写入 $DPATH/.env"
+          {
+            printf 'HOST=0.0.0.0\n'
+            printf 'PORT=%s\n'            "$APP_PORT"
+            printf 'DATABASE_URL=%s\n'    "$DATABASE_URL"
+            printf 'REDIS_URL=%s\n'       "$REDIS_URL"
+            printf 'SESSION_TTL_DAYS=%s\n' "${SESSION_TTL_DAYS:-7}"
+            printf 'COOKIE_SECURE=%s\n'    "${COOKIE_SECURE:-true}"
+            printf 'ADMIN_USERNAME=%s\n'  "$ADMIN_USERNAME"
+            printf 'ADMIN_PASSWORD=%s\n'  "$ADMIN_PASSWORD"
+            printf 'SEED_DEMO=false\n'
+            printf 'RUST_LOG=riben_server=info,tower_http=info,sqlx=warn\n'
+          } > .env.deploy
+          chmod 600 .env.deploy
+          scp -i ~/.ssh/deploy_key -P "$PORT" -o StrictHostKeyChecking=yes \
+            .env.deploy "$USER@$ADDR:$DPATH/.env"
+
+          echo "==> [$NAME] 重启服务"
+          $SSH "DPATH='$DPATH' sh -s" <<'REMOTE'
+            set -e
+            cd "$DPATH"
+            if command -v systemctl >/dev/null 2>&1 \
+              && systemctl list-unit-files 2>/dev/null | grep -q '^riben-server'; then
+              sudo systemctl restart riben-server
+            else
+              pkill -f "$DPATH/riben-server" 2>/dev/null || true
+              sleep 1
+              nohup ./riben-server >> app.log 2>&1 &
+              disown 2>/dev/null || true
+            fi
+          REMOTE
+
+          echo "==> [$NAME] 健康检查 http://127.0.0.1:$APP_PORT/api/health"
+          OK=0
+          for i in $(seq 1 30); do
+            if $SSH "curl -fsS -m 5 http://127.0.0.1:$APP_PORT/api/health" 2>/dev/null; then
+              OK=1; break
+            fi
+            sleep 2
+          done
+          if [[ "$OK" -ne 1 ]]; then
+            echo "::error::[$NAME] 健康检查失败，请登录 $USER@$ADDR 查看 $DPATH/app.log"
+            $SSH "tail -n 50 '$DPATH/app.log' 2>/dev/null || true"
+            exit 1
+          fi
+          echo "==> [$NAME] 部署完成"

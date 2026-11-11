@@ -27,10 +27,10 @@ WORKDIR /app
 COPY --from=builder /riben-server /app/riben-server
 
 ENV HOST=0.0.0.0 \
-    PORT=3000
+    PORT=9015
 
-EXPOSE 3000
+EXPOSE 9015
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s \
-    CMD curl -fsS http://127.0.0.1:3000/api/health || exit 1
+    CMD curl -fsS http://127.0.0.1:9015/api/health || exit 1
 
 CMD ["/app/riben-server"]

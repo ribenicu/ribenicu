@@ -6,7 +6,7 @@ Rust 单二进制服务：axum + sqlx(MySQL) + redis-rs。负责 REST API（`/ap
 
 ```bash
 cp .env.example .env   # 配置 DATABASE_URL / REDIS_URL / ADMIN_PASSWORD 等
-cargo run              # 默认 0.0.0.0:3000；启动时自动执行 migrations/
+cargo run              # 默认 0.0.0.0:9015；启动时自动执行 migrations/
 ```
 
 首次启动且 `users` 表为空时按 `ADMIN_USERNAME` / `ADMIN_PASSWORD` 播种管理员；`SEED_DEMO=true`（默认）且文章表为空时写入 6 篇演示文章（原静态站内容）。
@@ -49,3 +49,5 @@ migrations/       # sqlx migration（内嵌进二进制，启动自动执行）
 ## 部署
 
 见 [deploy/](../deploy/)（Dockerfile + docker-compose + Caddyfile）。生产建议 Caddy 托管 `frontend/` 并反代 `/api/*` 到本服务（同源无 CORS），此时 `FRONTEND_DIR` 留空。
+
+另有 GitHub Actions 打包部署流水线（scp 二进制 + 原子替换 + 健康检查），配置方法见根目录 [README.md](../README.md) 的「CI/CD 流水线」一节。

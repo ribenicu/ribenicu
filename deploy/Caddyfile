@@ -7,6 +7,6 @@ root * /srv/frontend
 encode zstd gzip
 
 @api path /api/*
-reverse_proxy @api app:3000
+reverse_proxy @api app:9015
 
 file_server

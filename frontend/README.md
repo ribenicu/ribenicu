@@ -17,11 +17,11 @@ Vite + React 18 + TypeScript 的 MPA 工程。**URL 与原静态站完全一致*
 
 ## 本地开发
 
-需要 pnpm（Node 18+）和可访问的后端（默认 `:3000`，见 `../server/README.md`）：
+需要 pnpm（Node 18+）和可访问的后端（默认 `:9015`，见 `../server/README.md`）：
 
 ```bash
 pnpm install
-pnpm dev          # http://localhost:5173，/api/* 已代理到 :3000
+pnpm dev          # http://localhost:5173，/api/* 已代理到 :9015
 ```
 
 ## 构建与部署
