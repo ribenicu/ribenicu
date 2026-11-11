@@ -22,7 +22,7 @@
 #     公钥需预先放到对应用户的 authorized_keys）
 #
 # 部署方式：tar 打包 dist → scp 到服务器临时文件 → 解压进 web_root.new →
-# 删除 web_root.old、原子 mv 切换，保留旧版本便于回滚；静态文件无需重启服务。
+# 删除旧 web_root、原子 mv 切换，不保留备份（旧版本回滚请重新打 tag 部署）。
 
 name: frontend-deploy
 
@@ -166,11 +166,14 @@ jobs:
             mkdir -p "$WEB_ROOT.new"
             tar xzf "$WEB_ROOT.tar.new" -C "$WEB_ROOT.new"
             rm -f "$WEB_ROOT.tar.new"
-            # 原子切换：保留旧版本为 .old，便于出问题快速回滚
-            rm -rf "$WEB_ROOT.old"
-            [ -d "$WEB_ROOT" ] && mv "$WEB_ROOT" "$WEB_ROOT.old"
+            # 直接替换：解压到临时目录后删除旧目录、原子切换，不保留 .old 备份
+            rm -rf "$WEB_ROOT.new"
+            mkdir -p "$WEB_ROOT.new"
+            tar xzf "$WEB_ROOT.tar.new" -C "$WEB_ROOT.new"
+            rm -f "$WEB_ROOT.tar.new"
+            rm -rf "$WEB_ROOT"
             mv "$WEB_ROOT.new" "$WEB_ROOT"
-            echo "  已切换: $WEB_ROOT（旧版本备份在 $WEB_ROOT.old）"
+            echo "  已切换: $WEB_ROOT"
           REMOTE
 
           # 校验 index.html 就位

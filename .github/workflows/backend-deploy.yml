@@ -1,8 +1,8 @@
 # 一本日记 · 后端打包与部署流水线
 #
 # 触发：创建 v* tag 时与前端流水线并行触发（main 分支普通提交不触发），或手动触发。
-# 流程：check-ssh（检查能否正常登录远程服务器，不可用直接退出）→ build（cargo 打包并 gzip 压缩）
-#       → deploy（上传压缩包、覆盖旧二进制、重启 + 健康检查）。
+# 流程：check-ssh（检查能否正常登录远程服务器）与 build（cargo 打包并 gzip 压缩）并行触发；
+#       两者都成功后 deploy 逐机发布（上传压缩包、覆盖旧二进制、重启 + 健康检查）。
 #
 # ===== 需在 GitHub 仓库 Settings 中配置 =====
 # Variables（仓库或环境变量，Settings → Secrets and variables → Actions → Variables）：
@@ -108,17 +108,15 @@ jobs:
           [[ "$FAIL" -eq 0 ]] || exit 1
 
   # ========== 打包：Release 编译并上传产物 ==========
+  # 注意：不依赖 check-ssh，与它在 tag 推送后并行启动，压缩整体耗时
   build:
     name: 打包 riben-server
-    needs: check-ssh
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
 
       - name: 安装 Rust toolchain
-        run: |
-          rustup toolchain install stable --profile minimal
-          rustup default stable
+        uses: dtolnay/rust-toolchain@stable
 
       - name: 缓存 cargo 依赖
         uses: Swatinem/rust-cache@v2
@@ -128,7 +126,9 @@ jobs:
       - name: Release 编译
         working-directory: server
         run: |
-          cargo build --release
+          cargo build --release --locked
+          strip target/release/riben-server
+          ls -lh target/release/riben-server
           strip target/release/riben-server
           ls -lh target/release/riben-server
 
