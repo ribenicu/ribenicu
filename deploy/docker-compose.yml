@@ -1,0 +1,96 @@
+# 一本日记 · 单机部署编排：mysql + redis + app + caddy
+# 用法：cp deploy/.env.example deploy/.env 并修改密码后
+#       docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d
+
+name: riben
+
+services:
+  mysql:
+    image: mysql:8
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-riben}
+      MYSQL_USER: ${MYSQL_USER:-riben}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?请在 .env 中设置 MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请在 .env 中设置 MYSQL_ROOT_PASSWORD}
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "127.0.0.1:3306:3306" # 本地开发直连；容器间走 riben 网络，生产无需对外开放
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-p$${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [riben]
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:6379:6379" # 本地开发直连；生产可删除
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [riben]
+
+  app:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: riben-server:latest
+    pull_policy: never # 本地构建的镜像，禁止向 registry 拉取
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: mysql://${MYSQL_USER:-riben}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE:-riben}
+      REDIS_URL: redis://redis:6379
+      SESSION_TTL_DAYS: "7"
+      COOKIE_SECURE: "true"
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?请在 .env 中设置 ADMIN_PASSWORD}
+      SEED_DEMO: ${SEED_DEMO:-true}
+      RUST_LOG: riben_server=info,tower_http=info,sqlx=warn
+      # 静态资源由 Caddy 托管，app 只跑 API，故 FRONTEND_DIR 留空
+      FRONTEND_DIR: ""
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks: [riben]
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # Caddyfile 首行 {$SITE_ADDRESS}；本地联调设为 :80，生产为 riben.icu（自动 TLS）
+      SITE_ADDRESS: ${SITE_ADDRESS:-riben.icu}
+    volumes:
+      - ../frontend:/srv/frontend:ro
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - app
+    networks: [riben]
+
+volumes:
+  mysql-data:
+  redis-data:
+  caddy-data:
+  caddy-config:
+
+networks:
+  riben:

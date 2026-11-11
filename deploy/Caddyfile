@@ -1,0 +1,12 @@
+# 一本日记 · Caddy 站点配置
+# 站点根目录 = frontend/（静态页面），/api/* 反代到 Rust 服务（同源，无 CORS）
+
+{$SITE_ADDRESS:riben.icu}
+
+root * /srv/frontend
+encode zstd gzip
+
+@api path /api/*
+reverse_proxy @api app:3000
+
+file_server

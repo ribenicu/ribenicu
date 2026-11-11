@@ -24,7 +24,7 @@
   <link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Noto+Serif+SC:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
 </head>
-<body>
+<body data-page="home">
   <div class="page">
     <!-- ============ 页头 ============ -->
     <header class="site-header">
@@ -52,7 +52,7 @@
       </svg>
       <p class="hero-lede">把每天的小确幸剪下来、贴上去、画个圈！这里是我的生活手账：吃了一顿好饭、看到一次晚霞、捡到一句好听的话，统统收进来～</p>
       <ul class="hero-badges" aria-label="站点小档案">
-        <li class="badge b-pink">📔 已记录 128 天</li>
+        <li class="badge b-pink">📔 <span id="badge-days">已记录 … 天</span></li>
         <li class="badge b-mint">🌈 持续更新中</li>
         <li class="badge b-blue">✂️ 手账风格</li>
       </ul>
@@ -63,73 +63,8 @@
       <section class="entries" id="entries" aria-label="最新日记">
         <h2 class="section-title"><span class="marker">✏️</span> 最新一页</h2>
 
-        <div class="card-grid">
-          <article class="card c1">
-            <span class="sticker s1">下雪啦！</span>
-            <time class="date" datetime="2026-11-08">2026.11.08</time>
-            <h3 class="card-title">初雪比往年早了一些</h3>
-            <p class="card-text">屋顶白白的好像撒了糖霜！楼下小朋友尖叫着冲出去，比闹钟还管用哈哈。泡了杯热茶，看雪把城市调成静音模式。</p>
-            <div class="card-foot">
-              <span class="tag t-pink">日常</span>
-              <a class="read" href="post.html">翻开这一页 →</a>
-            </div>
-          </article>
-
-          <article class="card c2">
-            <span class="sticker s2">改造完成</span>
-            <time class="date" datetime="2026-11-03">2026.11.03</time>
-            <h3 class="card-title">阳台变身小书房</h3>
-            <p class="card-text">花整个周末清走杂物，摆上小木桌、暖光灯和一盆绿萝。傍晚坐在这里写字，风从窗缝进来，租房也有了家的形状～</p>
-            <div class="card-foot">
-              <span class="tag t-mint">生活改造</span>
-              <a class="read" href="post.html">翻开这一页 →</a>
-            </div>
-          </article>
-
-          <article class="card c3">
-            <span class="sticker s3">光盘行动</span>
-            <time class="date" datetime="2026-10-26">2026.10.26</time>
-            <h3 class="card-title">失败的番茄面也香</h3>
-            <p class="card-text">面糊了、蛋散了、番茄出了水，但我一个人唏哩呼噜全吃完。这是本月最踏实的一顿饭，失败品也值得贴进手账！</p>
-            <div class="card-foot">
-              <span class="tag t-blue">食物</span>
-              <a class="read" href="post.html">翻开这一页 →</a>
-            </div>
-          </article>
-
-          <article class="card c1">
-            <span class="sticker s3">今日份快乐</span>
-            <time class="date" datetime="2026-10-19">2026.10.19</time>
-            <h3 class="card-title">在旧书店捡到宝</h3>
-            <p class="card-text">街角旧书店淘到一本九十年代的菜谱，里面还夹着前任主人的手写便签。跨越三十年的笔迹，和我看的是同一道菜。</p>
-            <div class="card-foot">
-              <span class="tag t-yellow">淘货</span>
-              <a class="read" href="post.html">翻开这一页 →</a>
-            </div>
-          </article>
-
-          <article class="card c2">
-            <span class="sticker s1">猫猫观察</span>
-            <time class="date" datetime="2026-10-12">2026.10.12</time>
-            <h3 class="card-title">楼下的猫又胖了一圈</h3>
-            <p class="card-text">橘座今天占据了快递柜顶，居高临下地审视每一个取件人。据我观察，它的腰围和快递数量成正比。</p>
-            <div class="card-foot">
-              <span class="tag t-pink">动物</span>
-              <a class="read" href="post.html">翻开这一页 →</a>
-            </div>
-          </article>
-
-          <article class="card c3">
-            <span class="sticker s2">晚霞预警</span>
-            <time class="date" datetime="2026-10-05">2026.10.05</time>
-            <h3 class="card-title">今天的晚霞是橘子味</h3>
-            <p class="card-text">下班路上一抬头，整片天都是橘子汽水色。站在路口拍了五分钟，错过一班公交，但是值得。</p>
-            <div class="card-foot">
-              <span class="tag t-blue">风景</span>
-              <a class="read" href="post.html">翻开这一页 →</a>
-            </div>
-          </article>
-        </div>
+        <!-- JS 渲染 /api/posts?limit=6；加载前显示同风格骨架 -->
+        <div class="card-grid"></div>
 
         <div class="more-wrap">
           <a class="btn-more" href="archive.html">📖 翻翻旧账（归档）</a>
@@ -154,6 +89,9 @@
     </footer>
   </div>
 
+  <script src="js/api.js"></script>
+  <script src="js/render.js"></script>
+  <script src="js/theme.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>

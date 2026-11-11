@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>手账页 · 一本日记</title>
+  <meta name="description" content="一本日记的一页手账。">
+  <meta name="theme-color" content="#fff9f2" id="meta-theme-color">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📔</text></svg>">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('riben-theme');
+        if (t !== 'light' && t !== 'dark') {
+          t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.dataset.theme = t;
+      } catch (e) { document.documentElement.dataset.theme = 'light'; }
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Noto+Serif+SC:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="post">
+  <div class="page">
+    <header class="site-header">
+      <a class="logo" href="index.html">一本日记<span class="dot"> ●</span></a>
+      <nav class="site-nav" aria-label="主导航">
+        <a class="nav-pill" href="index.html">首页</a>
+        <a class="nav-pill" href="archive.html">手账集</a>
+        <a class="nav-pill" href="index.html#about">关于我</a>
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="切换到暗色模式" aria-pressed="false">
+          <svg class="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.4M12 19.1v2.4M4.3 4.3l1.7 1.7M18 18l1.7 1.7M2.5 12h2.4M19.1 12h2.4M4.3 19.7 6 18M18 6l1.7-1.7"/>
+          </svg>
+          <svg class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M20.5 14.2A8.5 8.5 0 1 1 9.8 3.5a7 7 0 1 0 10.7 10.7Z"/>
+          </svg>
+        </button>
+      </nav>
+    </header>
+
+    <main>
+      <p id="post-loading" class="load-hint">📖 正在翻开这一页…</p>
+      <div id="post-error" hidden></div>
+
+      <article class="post" id="post-article">
+        <div id="post-content" hidden>
+          <span class="sticker s1 post-sticker" id="post-sticker" hidden></span>
+          <header class="post-header">
+            <h1 class="post-title" id="post-title"></h1>
+            <div class="post-meta" id="post-meta"></div>
+          </header>
+
+          <!-- 正文 HTML 由后端 comrak 渲染 + ammonia 消毒后返回 -->
+          <div class="post-body" id="post-body"></div>
+
+          <footer class="post-foot">
+            <a class="read" href="archive.html">← 翻回手账集</a>
+            <a class="read" href="index.html">回到首页 →</a>
+          </footer>
+        </div>
+      </article>
+
+      <!-- ============ 留言角 ============ -->
+      <section class="comments" id="comments" aria-label="留言角">
+        <h2 class="comments-title"><span class="marker">📮</span> 留言角</h2>
+
+        <div id="comments-list" class="comments-list">
+          <div class="load-hint">📮 正在取留言…</div>
+        </div>
+
+        <form class="comment-form" id="comment-form">
+          <p class="c-reply-line">
+            <span id="comment-reply-tip" class="c-reply-tip" hidden></span>
+            <button type="button" id="comment-cancel-reply" class="c-cancel" hidden>取消回复</button>
+          </p>
+          <div class="c-row">
+            <label class="c-field">
+              <span>昵称 *</span>
+              <input id="cf-name" name="name" maxlength="64" required autocomplete="nickname">
+            </label>
+            <label class="c-field">
+              <span>邮箱 *（不公开）</span>
+              <input id="cf-email" name="email" type="email" maxlength="190" required autocomplete="email">
+            </label>
+            <label class="c-field">
+              <span>网址（可选）</span>
+              <input id="cf-url" name="url" type="url" maxlength="190" placeholder="https://">
+            </label>
+          </div>
+          <label class="c-field c-field-full">
+            <span>想说的话 *</span>
+            <textarea id="cf-content" name="content" rows="5" maxlength="2000" required></textarea>
+          </label>
+          <p class="c-tip" id="comment-tip" hidden></p>
+          <button class="btn-more c-submit" type="submit">📮 贴上去（审核后展示）</button>
+        </form>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span>♡ 2026 一本日记</span>
+      <span class="footer-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span>riben.icu · 每天贴一页</span>
+    </footer>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/render.js"></script>
+  <script src="js/theme.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

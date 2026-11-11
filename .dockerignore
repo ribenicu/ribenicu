@@ -1,0 +1,7 @@
+# Docker 构建上下文排除项（上下文 = 仓库根）
+.git
+**/target
+server/.env
+deploy/.env
+**/.DS_Store
+docs

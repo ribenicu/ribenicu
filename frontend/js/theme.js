@@ -1,5 +1,7 @@
-/* 一本日记 · 主题切换 */
+/* 一本日记 · 主题切换（从 main.js 拆出，main.js 仅作入口） */
 (function () {
+  'use strict';
+
   var root = document.documentElement;
   var toggle = document.getElementById('theme-toggle');
   var meta = document.getElementById('meta-theme-color');
