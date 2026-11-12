@@ -168,7 +168,8 @@ pnpm build          # tsc --noEmit 类型检查 + vite build
 | `/admin.html` | 管理后台（登录后管理文章/评论/标签） |
 | `/api/health` | 健康检查（MySQL / Redis 状态） |
 
-详细 API、缓存键设计、里程碑拆解见 [docs/development-plan.md](docs/development-plan.md)。
+- 详细 API、缓存键设计、里程碑拆解见 [docs/development-plan.md](docs/development-plan.md)；
+  智能体（Agent）鉴权与接口调用指南见 [docs/agent-api.md](docs/agent-api.md)。
 
 ## 环境变量
 
