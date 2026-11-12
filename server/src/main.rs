@@ -36,6 +36,9 @@ async fn main() {
     if let Err(e) = db::seed_admin(&pool, &cfg).await {
         tracing::error!(error = %e, "admin seed failed");
     }
+    if let Err(e) = db::backfill_admin_email(&pool, &cfg).await {
+        tracing::error!(error = %e, "admin email backfill failed");
+    }
     if let Err(e) = db::seed_demo_posts(&pool, &cfg).await {
         tracing::error!(error = %e, "demo seed failed");
     }

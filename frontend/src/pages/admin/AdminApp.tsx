@@ -1,4 +1,4 @@
-/* 管理后台：登录 → 文章 / 评论审核 / 标签 三 tab 单页。
+/* 管理后台：邮箱验证码登录 → 文章 / 评论审核 / 标签 三 tab 单页。
  * 逻辑对照原 js/admin.js 逐段移植。 */
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { api, ApiError, type AdminComment, type AdminPost, type Paged, type Tag, type User } from '../../lib/api';
@@ -21,6 +21,8 @@ const COMMENT_STATUS: [number, string, string][] = [
 export default function AdminApp() {
   const [session, setSession] = useState<Session>({ kind: 'checking' });
   const [loginTip, setLoginTip] = useState('');
+  const [sendTip, setSendTip] = useState('');
+  const [countdown, setCountdown] = useState(0);
   const [tab, setTab] = useState<TabName>('posts');
   const [tags, setTags] = useState<Tag[]>([]);
   const [posts, setPosts] = useState<AdminPost[] | null>(null);
@@ -39,6 +41,13 @@ export default function AdminApp() {
       .then((user) => setSession({ kind: 'in', user }))
       .catch(() => setSession({ kind: 'out' }));
   }, []);
+
+  /* ---------- 发送验证码倒计时 ---------- */
+  useEffect(() => {
+    if (countdown <= 0) return;
+    const timer = setTimeout(() => setCountdown((c) => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [countdown]);
 
   const loadTags = useCallback(() => {
     api
@@ -77,16 +86,38 @@ export default function AdminApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.kind]);
 
+  /* ---------- 发送验证码 ---------- */
+  function sendCode(email: string) {
+    if (!email) {
+      setSendTip('请先输入邮箱地址');
+      return;
+    }
+    setSendTip('');
+    setLoginTip('');
+    api
+      .post('/api/auth/email-code', { email })
+      .then(() => {
+        setSendTip('验证码已发送，请查收邮件');
+        setCountdown(60);
+      })
+      .catch((err: unknown) => {
+        if (err instanceof ApiError && err.status === 429) {
+          setSendTip('发送太频繁了，请稍后再试');
+        } else {
+          setSendTip(`📭 ${err instanceof Error ? err.message : '发送失败'}`);
+        }
+      });
+  }
+
   /* ---------- 登录 / 登出 ---------- */
   function doLogin(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
+    const email = (form.elements.namedItem('email') as HTMLInputElement).value;
+    const code = (form.elements.namedItem('code') as HTMLInputElement).value;
     setLoginTip('');
     api
-      .post<User>('/api/auth/login', {
-        username: (form.elements.namedItem('username') as HTMLInputElement).value,
-        password: (form.elements.namedItem('password') as HTMLInputElement).value,
-      })
+      .post<User>('/api/auth/email-login', { email, code })
       .then((user) => setSession({ kind: 'in', user }))
       .catch((err: unknown) => {
         if (err instanceof ApiError && err.status === 429) {
@@ -146,13 +177,28 @@ export default function AdminApp() {
             <h1>🔐 翻开管理页</h1>
             <form onSubmit={doLogin}>
               <label className="c-field">
-                <span>用户名</span>
-                <input name="username" autoComplete="username" required />
+                <span>邮箱</span>
+                <input name="email" type="email" autoComplete="email" required />
               </label>
               <label className="c-field">
-                <span>密码</span>
-                <input name="password" type="password" autoComplete="current-password" required />
+                <span>验证码</span>
+                <div className="code-row">
+                  <input name="code" maxLength={6} pattern="\d{6}" autoComplete="one-time-code" required />
+                  <button
+                    className="ai-btn"
+                    type="button"
+                    disabled={countdown > 0}
+                    onClick={() => {
+                      const form = document.querySelector('#admin-login form') as HTMLFormElement;
+                      const email = (form?.elements.namedItem('email') as HTMLInputElement)?.value ?? '';
+                      sendCode(email);
+                    }}
+                  >
+                    {countdown > 0 ? `${countdown}s 后重发` : '发送验证码'}
+                  </button>
+                </div>
               </label>
+              {sendTip && <p className="c-tip">{sendTip}</p>}
               {loginTip && <p className="c-tip">{loginTip}</p>}
               <button className="btn-more c-submit" type="submit">📖 打开手账</button>
             </form>

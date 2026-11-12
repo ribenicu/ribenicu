@@ -772,6 +772,26 @@ a { color: inherit; text-decoration: none; }
 .admin-login .c-field { margin-bottom: 14px; }
 .admin-login .c-submit { width: 100%; }
 
+/* 验证码行：输入框 + 发送按钮并排 */
+.admin-login .code-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.admin-login .code-row input {
+  flex: 1;
+  min-width: 0;
+}
+.admin-login .code-row .ai-btn {
+  white-space: nowrap;
+  font-size: 13px;
+  padding: 6px 12px;
+}
+.admin-login .code-row .ai-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .admin-bar {
   display: flex;
   align-items: center;

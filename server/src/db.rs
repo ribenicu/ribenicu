@@ -38,10 +38,11 @@ pub async fn run_migrations(pool: &MySqlPool) -> AppResult<()> {
     Ok(())
 }
 
-/// 首次启动且 users 表为空时，用环境变量播种管理员
+/// 首次启动且 users 表为空时，用环境变量播种管理员。
+/// password_hash 保留列（兼容旧数据），但登录已改为邮箱验证码，此处填充随机哈希占位。
 pub async fn seed_admin(pool: &MySqlPool, cfg: &Config) -> AppResult<()> {
-    let (username, password) = match (&cfg.admin_username, &cfg.admin_password) {
-        (Some(u), Some(p)) => (u.clone(), p.clone()),
+    let (username, email) = match (&cfg.admin_username, &cfg.admin_email) {
+        (Some(u), Some(e)) => (u.clone(), e.clone()),
         _ => return Ok(()),
     };
     let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
@@ -50,18 +51,35 @@ pub async fn seed_admin(pool: &MySqlPool, cfg: &Config) -> AppResult<()> {
     if count > 0 {
         return Ok(());
     }
+    let dummy_password = uuid::Uuid::new_v4().to_string();
     let salt = argon2::password_hash::SaltString::generate(argon2::password_hash::rand_core::OsRng);
     use argon2::password_hash::PasswordHasher;
     let hash = argon2::Argon2::default()
-        .hash_password(password.as_bytes(), &salt)
+        .hash_password(dummy_password.as_bytes(), &salt)
         .map_err(|e| AppError::Internal(format!("hash password failed: {e}")))?
         .to_string();
-    sqlx::query("INSERT INTO users (username, password_hash) VALUES (?, ?)")
+    sqlx::query("INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)")
         .bind(&username)
+        .bind(&email)
         .bind(&hash)
         .execute(pool)
         .await?;
     tracing::info!(username = %username, "admin user seeded");
+    Ok(())
+}
+
+/// 已有管理员但 email 为空时，用 ADMIN_EMAIL 回填（用于从旧版密码登录迁移）
+pub async fn backfill_admin_email(pool: &MySqlPool, cfg: &Config) -> AppResult<()> {
+    let Some(email) = &cfg.admin_email else {
+        return Ok(());
+    };
+    let result = sqlx::query("UPDATE users SET email = ? WHERE email IS NULL")
+        .bind(email)
+        .execute(pool)
+        .await?;
+    if result.rows_affected() > 0 {
+        tracing::info!(email = %email, "admin email backfilled");
+    }
     Ok(())
 }
 

@@ -126,7 +126,17 @@ export interface CommentInput {
 }
 
 export interface User {
+  id?: number;
   username: string;
+}
+
+export interface SendCodeReq {
+  email: string;
+}
+
+export interface EmailLoginReq {
+  email: string;
+  code: string;
 }
 
 export interface AdminPost {

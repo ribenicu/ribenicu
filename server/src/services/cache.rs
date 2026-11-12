@@ -13,6 +13,7 @@ pub mod keys {
     pub const TTL_POST_ARCHIVE: u64 = 600; // 10 min
     pub const TTL_TAG_ALL: u64 = 1800; // 30 min
     pub const TTL_COMMENT_LIST: u64 = 120; // 2 min
+    pub const TTL_EMAIL_CODE: u64 = 300; // 5 min
 
     pub fn post_detail(slug: &str) -> String {
         format!("post:detail:{slug}")
@@ -37,6 +38,18 @@ pub mod keys {
     }
     pub fn rate_login(ip: &str) -> String {
         format!("rate:login:{ip}")
+    }
+    /// 邮箱验证码：email_code:{email} -> 6 位数字码
+    pub fn email_code(email: &str) -> String {
+        format!("email_code:{email}")
+    }
+    /// 验证码错误尝试次数：email_code_attempts:{email} -> INCR 计数
+    pub fn email_code_attempts(email: &str) -> String {
+        format!("email_code_attempts:{email}")
+    }
+    /// 发送验证码限流：rate:email_send:{ip_or_email}
+    pub fn rate_email_send(identifier: &str) -> String {
+        format!("rate:email_send:{identifier}")
     }
 }
 

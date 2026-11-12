@@ -14,7 +14,17 @@ pub struct Config {
     pub frontend_dir: Option<String>,
     /// 首次启动且 users 表为空时播种管理员
     pub admin_username: Option<String>,
-    pub admin_password: Option<String>,
+    /// 管理员邮箱（邮箱验证码登录的目标邮箱）
+    pub admin_email: Option<String>,
+    /// SMTP 邮件发送配置
+    pub smtp_host: Option<String>,
+    pub smtp_port: u16,
+    /// true 使用 SMTPS（SSL），false 使用 STARTTLS
+    pub smtp_secure: bool,
+    pub smtp_user: Option<String>,
+    pub smtp_pass: Option<String>,
+    /// 发件人地址，默认与 smtp_user 相同
+    pub smtp_from: Option<String>,
     /// 首次启动且 posts 表为空时写入演示文章（原静态站内容）
     pub seed_demo: bool,
     pub log_directive: String,
@@ -28,6 +38,8 @@ impl Config {
             .ok()
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty());
+
+        let smtp_user = non_empty("SMTP_USER");
 
         Self {
             host: std::env::var("HOST").unwrap_or_else(|_| "0.0.0.0".into()),
@@ -48,7 +60,18 @@ impl Config {
                 .unwrap_or(false),
             frontend_dir,
             admin_username: non_empty("ADMIN_USERNAME"),
-            admin_password: non_empty("ADMIN_PASSWORD"),
+            admin_email: non_empty("ADMIN_EMAIL"),
+            smtp_host: non_empty("SMTP_HOST"),
+            smtp_port: std::env::var("SMTP_PORT")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(465),
+            smtp_secure: std::env::var("SMTP_SECURE")
+                .map(|v| v != "false" && v != "0")
+                .unwrap_or(true),
+            smtp_user: smtp_user.clone(),
+            smtp_pass: non_empty("SMTP_PASS"),
+            smtp_from: non_empty("SMTP_FROM").or(smtp_user),
             seed_demo: std::env::var("SEED_DEMO")
                 .map(|v| v != "false" && v != "0")
                 .unwrap_or(true),

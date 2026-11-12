@@ -18,6 +18,10 @@ pub fn api_router(state: AppState) -> Router {
         middleware::from_fn_with_state(state.clone(), crate::middleware::rate_limit::comment_limit);
     let login_limit =
         middleware::from_fn_with_state(state.clone(), crate::middleware::rate_limit::login_limit);
+    let email_send_limit = middleware::from_fn_with_state(
+        state.clone(),
+        crate::middleware::rate_limit::email_send_limit,
+    );
 
     Router::new()
         .route("/health", get(health))
@@ -29,7 +33,14 @@ pub fn api_router(state: AppState) -> Router {
             "/comments",
             post(comment::create).route_layer(comment_limit),
         )
-        .route("/auth/login", post(auth::login).route_layer(login_limit))
+        .route(
+            "/auth/email-code",
+            post(auth::send_code).route_layer(email_send_limit),
+        )
+        .route(
+            "/auth/email-login",
+            post(auth::email_login).route_layer(login_limit),
+        )
         .route(
             "/auth/logout",
             post(auth::logout).route_layer(auth_layer.clone()),

@@ -70,9 +70,25 @@ pub async fn login_limit(
     Ok(next.run(req).await)
 }
 
+/// 发送验证码限流：10 分钟最多 5 次 / IP
+pub async fn email_send_limit(
+    State(state): State<AppState>,
+    req: Request,
+    next: Next,
+) -> Result<Response, AppError> {
+    let ip = client_ip(&req, req.extensions().get::<ConnectInfo<SocketAddr>>());
+    hit(&state, &keys::rate_email_send(&format!("ip:{ip}")), 600, 5).await?;
+    Ok(next.run(req).await)
+}
+
 /// 登录成功后清零失败计数
 pub async fn reset_login(state: &AppState, ip: &str) {
     if let Some(mut conn) = state.redis.as_ref().cloned() {
         let _: redis::RedisResult<()> = conn.del(keys::rate_login(ip)).await;
     }
+}
+
+/// 辅助：按 key 限流检查（供路由层做邮箱维度限流时复用）
+pub async fn check_limit(state: &AppState, key: &str, window_secs: u64, max: i64) -> Result<(), AppError> {
+    hit(state, key, window_secs, max).await
 }
