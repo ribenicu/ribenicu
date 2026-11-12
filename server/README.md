@@ -47,7 +47,7 @@ migrations/       # sqlx migration（内嵌进二进制，启动自动执行）
 ## 设计要点
 
 - **缓存**：Cache-Aside + 写后失效；Redis 不可用时全部回源 MySQL 并告警，不中断服务（降级策略见 `docs/development-plan.md` §5）。
-- **安全**：argon2 密码哈希；Session Token 仅存 Redis（`session:{token}`，7 天滑动续期）；Cookie `HttpOnly; SameSite=Lax`（HTTPS 下加 `Secure`）；Markdown 渲染后 ammonia 白名单消毒；评论游客输入长度/格式校验 + 60s/IP 限流；登录 10min 5 次/IP 限流。
+- **安全**：argon2 密码哈希；Session Token 仅存 Redis（`session:{token}`，7 天滑动续期）；Cookie `HttpOnly; SameSite=Lax`（HTTPS 下加 `Secure`）；Markdown 渲染后 ammonia 白名单消毒；评论游客输入长度/格式校验 + 60s/IP 限流；登录 10min 5 次/IP 限流。可选 `ADMIN_API_TOKEN`：配置后请求头 `x-admin-token` / `Authorization: Bearer` 携带该 token 可绕过登录鉴权执行全部管理操作（取库中第一位用户作为管理员身份），不配置则关闭；生产环境务必通过流水线 Secret 注入。
 - **migration**：文件合入后不可修改，只新增；由 `sqlx::migrate!` 在启动时应用。
 
 ## API 一览

@@ -26,6 +26,8 @@
 #   REDIS_URL       —— Redis 连接串，如 redis://:pass@host:6379
 #   ADMIN_USERNAME  —— 首次播种管理员用户名
 #   ADMIN_PASSWORD  —— 首次播种管理员密码
+#   ADMIN_API_TOKEN —— 可选，管理员 API Token；配置后请求头携带该 token
+#                     可绕过登录鉴权执行全部管理操作，务必用 Secret 配置
 #
 # 部署方式：scp 上传二进制到 deploy_path 并原子替换，写入 deploy_path/.env，
 # 优先 systemctl restart riben-server，无 systemd 单元时 pkill + nohup 重启，
@@ -180,6 +182,7 @@ jobs:
           REDIS_URL: ${{ secrets.REDIS_URL }}
           ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          ADMIN_API_TOKEN: ${{ secrets.ADMIN_API_TOKEN }}
           SESSION_TTL_DAYS: ${{ vars.SESSION_TTL_DAYS }}
           COOKIE_SECURE: ${{ vars.COOKIE_SECURE }}
         run: |
@@ -212,6 +215,9 @@ jobs:
             printf 'COOKIE_SECURE=%s\n'    "${COOKIE_SECURE:-true}"
             printf 'ADMIN_USERNAME=%s\n'  "$ADMIN_USERNAME"
             printf 'ADMIN_PASSWORD=%s\n'  "$ADMIN_PASSWORD"
+            if [[ -n "$ADMIN_API_TOKEN" ]]; then
+              printf 'ADMIN_API_TOKEN=%s\n' "$ADMIN_API_TOKEN"
+            fi
             printf 'SEED_DEMO=false\n'
             printf 'RUST_LOG=riben_server=info,tower_http=info,sqlx=warn\n'
           } > .env.deploy

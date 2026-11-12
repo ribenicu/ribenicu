@@ -22,6 +22,10 @@ async fn main() {
 
     init_tracing(&cfg.log_directive);
 
+    if cfg.admin_api_token.is_some() {
+        tracing::warn!("ADMIN_API_TOKEN 已配置：携带该 token 的请求可绕过登录鉴权，请确保 token 足够随机且仅通过密文渠道分发");
+    }
+
     let pool = match db::connect_pool(&cfg).await {
         Ok(p) => p,
         Err(e) => {

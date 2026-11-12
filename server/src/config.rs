@@ -16,6 +16,10 @@ pub struct Config {
     pub admin_username: Option<String>,
     /// 管理员邮箱（邮箱验证码登录的目标邮箱）
     pub admin_email: Option<String>,
+    /// 可选：管理员 API Token。配置后请求头 `x-admin-token`（或
+    /// `Authorization: Bearer <token>`）携带该值即可绕过登录鉴权，
+    /// 以管理员身份调用全部接口；不配置则完全关闭该能力
+    pub admin_api_token: Option<String>,
     /// SMTP 邮件发送配置
     pub smtp_host: Option<String>,
     pub smtp_port: u16,
@@ -61,6 +65,7 @@ impl Config {
             frontend_dir,
             admin_username: non_empty("ADMIN_USERNAME"),
             admin_email: non_empty("ADMIN_EMAIL"),
+            admin_api_token: non_empty("ADMIN_API_TOKEN"),
             smtp_host: non_empty("SMTP_HOST"),
             smtp_port: std::env::var("SMTP_PORT")
                 .ok()

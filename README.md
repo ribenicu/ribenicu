@@ -148,6 +148,7 @@ pnpm build          # tsc --noEmit 类型检查 + vite build
 | `DATABASE_URL` | MySQL 连接串，如 `mysql://user:pass@host:3306/riben` |
 | `REDIS_URL` | Redis 连接串，如 `redis://:pass@host:6379` |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | 首次播种的管理员账号（仅首次启动写入） |
+| `ADMIN_API_TOKEN` | 可选，管理员 API Token。**务必用 Secret 配置**：配置后请求头 `x-admin-token: <token>`（或 `Authorization: Bearer <token>`）可绕过登录鉴权，执行全部管理操作；不配置则关闭该能力 |
 | `FRONTEND_SSH_PRIVATE_KEY` | 前端各服务器 deploy 用户的 SSH 私钥（独立于后端的 `SSH_PRIVATE_KEY`） |
 
 ### 服务器前提
