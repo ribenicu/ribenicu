@@ -1,7 +1,7 @@
 # 一本日记 · 后端打包与部署流水线
 #
 # 触发：创建 v* tag 时与前端流水线并行触发（main 分支普通提交不触发），或手动触发。
-# 流程：check-ssh（检查能否正常登录远程服务器）与 build（cargo 打包并 gzip 压缩）并行触发；
+# 流程：check-ssh（检查能否正常登录远程服务器）与 build（cargo 打包并 xz 高强度压缩）并行触发；
 #       两者都成功后 deploy 逐机发布（上传压缩包、覆盖旧二进制、重启 + 健康检查）。
 #
 # ===== 需在 GitHub 仓库 Settings 中配置 =====
@@ -32,7 +32,7 @@
 #   ADMIN_API_TOKEN —— 可选，管理员 API Token；配置后请求头携带该 token
 #                     可绕过登录鉴权执行全部管理操作（含 MCP 请求头鉴权），务必用 Secret 配置
 #
-# 部署方式：scp 上传二进制到 deploy_path 并原子替换，写入 deploy_path/.env，
+# 部署方式：scp 上传 xz 压缩包到 deploy_path 并解压原子替换，写入 deploy_path/.env，
 # 优先 systemctl restart riben-server，无 systemd 单元时 pkill + nohup 重启，
 # 最后探测 http://127.0.0.1:<app_port>/api/health 确认启动成功。
 
@@ -135,16 +135,18 @@ jobs:
           strip target/release/riben-server
           ls -lh target/release/riben-server
 
+      # 用 xz -9e 高强度压缩：比 gzip 小 ~35%，跨境 scp 传输时间近似等比缩短；
+      # 压缩耗时由 runner 多线程承担，服务器解压只需数秒
       - name: 压缩二进制
         run: |
-          gzip -c server/target/release/riben-server > "$RUNNER_TEMP/riben-server.gz"
-          ls -lh "$RUNNER_TEMP/riben-server.gz"
+          xz -9e -T0 -c server/target/release/riben-server > "$RUNNER_TEMP/riben-server.xz"
+          ls -lh "$RUNNER_TEMP/riben-server.xz"
 
       - name: 上传二进制产物
         uses: actions/upload-artifact@v7
         with:
           name: ${{ env.ARTIFACT_NAME }}
-          path: ${{ runner.temp }}/riben-server.gz
+          path: ${{ runner.temp }}/riben-server.xz
           if-no-files-found: error
           retention-days: 7
 
@@ -202,9 +204,10 @@ jobs:
           $SSH "mkdir -p '$DPATH' && command -v curl >/dev/null || true"
           # 先传临时文件，再解压覆盖，避免下载到一半的脏包
           scp -i ~/.ssh/deploy_key -P "$PORT" -o StrictHostKeyChecking=yes \
-            dist/riben-server.gz "$USER@$ADDR:$DPATH/riben-server.gz.new"
-          $SSH "gunzip -c '$DPATH/riben-server.gz.new' > '$DPATH/riben-server.new' \
-            && rm -f '$DPATH/riben-server.gz.new' \
+            dist/riben-server.xz "$USER@$ADDR:$DPATH/riben-server.xz.new"
+          $SSH "command -v xz >/dev/null || { echo '::error::[$NAME] 服务器缺少 xz 命令，请安装 xz-utils'; exit 1; } \
+            && xz -dc '$DPATH/riben-server.xz.new' > '$DPATH/riben-server.new' \
+            && rm -f '$DPATH/riben-server.xz.new' \
             && chmod +x '$DPATH/riben-server.new' \
             && mv -f '$DPATH/riben-server.new' '$DPATH/riben-server'"
 
