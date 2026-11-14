@@ -103,6 +103,69 @@ pub async fn create(state: &AppState, mut req: CreateCommentReq) -> AppResult<Co
     Ok(comment)
 }
 
+/// 管理端：以站长身份回复评论。
+///
+/// 回复直接置为「已通过」（`status = 1`），并失效该文章的公开评论缓存；
+/// 回复楼中楼时与游客逻辑一致，拍扁到顶层（最多两层）。
+pub async fn reply_as_admin(
+    state: &AppState,
+    parent_id: u64,
+    content: &str,
+    author_name: Option<&str>,
+    author_email: Option<&str>,
+) -> AppResult<Comment> {
+    let content = content.trim();
+    if content.is_empty() {
+        return Err(AppError::Validation("回复内容不能为空".into()));
+    }
+    if content.chars().count() > 2000 {
+        return Err(AppError::Validation("回复内容不能超过 2000 个字符".into()));
+    }
+
+    let parent: Option<(Option<u64>, u64)> =
+        sqlx::query_as("SELECT parent_id, post_id FROM comments WHERE id = ?")
+            .bind(parent_id)
+            .fetch_optional(&state.db)
+            .await?;
+    let Some((grand_parent, post_id)) = parent else {
+        return Err(AppError::NotFound("评论不存在".into()));
+    };
+    let parent_id = grand_parent.unwrap_or(parent_id);
+
+    let author_name = author_name
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or("站长");
+    if author_name.chars().count() > 64 {
+        return Err(AppError::Validation("昵称不能超过 64 个字符".into()));
+    }
+    let author_email = author_email
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or("admin@riben.icu");
+
+    let result = sqlx::query(
+        "INSERT INTO comments (post_id, parent_id, author_name, author_email, author_url, content, status) \
+         VALUES (?, ?, ?, ?, NULL, ?, 1)",
+    )
+    .bind(post_id)
+    .bind(parent_id)
+    .bind(author_name)
+    .bind(author_email)
+    .bind(content)
+    .execute(&state.db)
+    .await?;
+
+    cache::del(&state.redis, &[keys::comment_list(post_id)]).await;
+
+    Ok(
+        sqlx::query_as::<_, Comment>("SELECT * FROM comments WHERE id = ?")
+            .bind(result.last_insert_id())
+            .fetch_one(&state.db)
+            .await?,
+    )
+}
+
 /// 管理端：评论列表（分页 + 按状态筛选）
 pub async fn admin_list(
     state: &AppState,

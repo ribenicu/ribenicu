@@ -89,6 +89,11 @@ pub async fn reset_login(state: &AppState, ip: &str) {
 }
 
 /// 辅助：按 key 限流检查（供路由层做邮箱维度限流时复用）
-pub async fn check_limit(state: &AppState, key: &str, window_secs: u64, max: i64) -> Result<(), AppError> {
+pub async fn check_limit(
+    state: &AppState,
+    key: &str,
+    window_secs: u64,
+    max: i64,
+) -> Result<(), AppError> {
     hit(state, key, window_secs, max).await
 }

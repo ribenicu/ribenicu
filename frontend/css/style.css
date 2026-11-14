@@ -383,6 +383,15 @@ a { color: inherit; text-decoration: none; }
 .footer-dots i:nth-child(1) { background: var(--pink); }
 .footer-dots i:nth-child(2) { background: var(--yellow); }
 .footer-dots i:nth-child(3) { background: var(--mint); }
+.footer-icp {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ink-faint);
+  text-decoration: none;
+}
+.footer-icp:hover { color: var(--ink-soft, var(--ink)); }
+.footer-icp-icon { display: block; flex: none; }
 
 /* ---------- 响应式 ---------- */
 @media (max-width: 760px) {

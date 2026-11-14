@@ -5,7 +5,7 @@ use crate::error::{AppError, AppResult};
 use crate::middleware::auth::{require_auth, AuthUser};
 use crate::models::comment::CommentAdmin;
 use crate::models::post::PostAdmin;
-use crate::models::tag::{CreateTagReq, TagOut};
+use crate::models::tag::{CreateTagReq, TagOut, UpdateTagReq};
 use crate::models::{self, ok, Empty};
 use crate::services::comment as comment_svc;
 use crate::services::post as post_svc;
@@ -25,6 +25,7 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/comments/{id}/approve", put(approve_comment))
         .route("/comments/{id}/reject", put(reject_comment))
         .route("/tags", get(list_tags).post(create_tag))
+        .route("/tags/{id}", put(update_tag).delete(delete_tag))
         .route("/preview", post(preview_markdown))
         .route_layer(middleware::from_fn_with_state(state, require_auth))
 }
@@ -187,26 +188,36 @@ async fn create_tag(
 ) -> AppResult<models::ApiResponse<TagOut>> {
     req.validate()
         .map_err(|e| AppError::Validation(format!("{e}")))?;
-    let result = sqlx::query("INSERT INTO tags (name, color) VALUES (?, ?)")
-        .bind(&req.name)
-        .bind(&req.color)
-        .execute(&state.db)
-        .await
-        .map_err(|e| match e {
-            sqlx::Error::Database(db_err)
-                if db_err.kind() == sqlx::error::ErrorKind::UniqueViolation =>
-            {
-                AppError::Conflict("标签已存在".into())
-            }
-            other => other.into(),
-        })?;
-    let tag = TagOut {
-        id: result.last_insert_id(),
-        name: req.name,
-        color: req.color,
-    };
-    crate::services::cache::del(&state.redis, &[crate::services::cache::keys::tag_all()]).await;
-    Ok(ok(tag))
+    Ok(ok(
+        post_svc::create_tag(&state, &req.name, &req.color).await?
+    ))
+}
+
+async fn update_tag(
+    State(state): State<AppState>,
+    Path(id): Path<u64>,
+    axum::Json(req): axum::Json<UpdateTagReq>,
+) -> AppResult<models::ApiResponse<TagOut>> {
+    req.validate()
+        .map_err(|e| AppError::Validation(format!("{e}")))?;
+    if req.name.is_none() && req.color.is_none() {
+        return Err(AppError::Validation("至少提供 name 或 color".into()));
+    }
+    Ok(ok(post_svc::update_tag(
+        &state,
+        id,
+        req.name.as_deref(),
+        req.color.as_deref(),
+    )
+    .await?))
+}
+
+async fn delete_tag(
+    State(state): State<AppState>,
+    Path(id): Path<u64>,
+) -> AppResult<models::ApiResponse<Empty>> {
+    post_svc::delete_tag(&state, id).await?;
+    Ok(ok(Empty {}))
 }
 
 #[derive(Debug, Deserialize)]

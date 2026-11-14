@@ -11,7 +11,7 @@ pub struct Tag {
     pub color: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct TagOut {
     pub id: u64,
     pub name: String,
@@ -34,4 +34,12 @@ pub struct CreateTagReq {
     pub name: String,
     #[validate(length(min = 1, max = 16))]
     pub color: String,
+}
+
+#[derive(Debug, serde::Deserialize, Validate)]
+pub struct UpdateTagReq {
+    #[validate(length(min = 1, max = 64))]
+    pub name: Option<String>,
+    #[validate(length(min = 1, max = 16))]
+    pub color: Option<String>,
 }

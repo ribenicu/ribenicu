@@ -12,26 +12,30 @@ riben/
 │   └── src/           # lib/api.ts、theme.ts、components/、pages/（含 admin/）
 ├── server/            # 后端：Rust + axum + sqlx + redis（独立 Cargo 项目）
 │   ├── migrations/    # sqlx migration（启动时自动执行，内嵌于二进制）
-│   └── src/           # routes / services / middleware / models
+│   └── src/           # routes / services / middleware / models / mcp（MCP 服务）
 ├── deploy/            # 部署配置：Dockerfile + docker-compose + Caddyfile
 ├── .github/workflows/ # CI/CD：backend-deploy.yml（后端打包部署）、frontend-deploy.yml（前端构建部署）
 └── docs/
-    └── development-plan.md   # 设计与开发计划（M0–M6 里程碑）
+    ├── development-plan.md   # 设计与开发计划（M0–M6 里程碑）
+    ├── agent-api.md          # REST API 鉴权与调用指南
+    └── mcp.md                # MCP 服务：邮箱登录 + 全部管理工具
 ```
 
 ## 架构
 
 ```
 浏览器（frontend/dist 构建产物：React MPA，fetch 渲染）
-        │ /api/*
-        ▼
-   Caddy ── /api/* → app: riben-server (axum)
+        │ /api/*                         MCP 客户端（Claude Code / Cursor 等）
+        │                                   │ /mcp（Streamable HTTP）
+        ▼                                   ▼
+   Caddy ── /api/*、/mcp → app: riben-server (axum)
                         ├── MySQL 8（文章/评论/标签/用户）
                         └── Redis 7（Cache-Aside 缓存 + Session + 限流计数器）
 ```
 
 - 前端为 Vite MPA：`pnpm build` 产物在 `frontend/dist/`，URL 保持 `/post.html?p=slug` 等旧链接不变。
 - 后端单二进制：migration 内嵌，启动自动建表；Redis 不可用时降级直连 MySQL，不中断服务。
+- 内置标准 MCP 服务（Streamable HTTP，`/mcp`）：管理员通过邮箱验证码登录后，可用 AI 客户端完成文章、评论、标签等管理操作，见 [docs/mcp.md](docs/mcp.md)。
 
 ## 快速开始
 
@@ -40,7 +44,7 @@ riben/
 ```bash
 # 后端（自动跑 migration；首次启动按 .env 播种管理员/演示文章）
 cd server
-cp .env.example .env       # 修改 DATABASE_URL / ADMIN_PASSWORD 等
+cp .env.example .env       # 修改 DATABASE_URL / ADMIN_EMAIL / SMTP_* 等
 cargo run                  # 默认 :9015
 
 # 前端（另开终端；Vite dev 会把 /api/* 代理到 :9015）
@@ -109,6 +113,8 @@ pnpm build          # tsc --noEmit 类型检查 + vite build
 | `SERVERS_CONFIG` | 是（后端） | 后端服务器列表，JSON 数组（示例见下） |
 | `SESSION_TTL_DAYS` | 否 | 后端 Session 有效期天数，默认 7 |
 | `COOKIE_SECURE` | 否 | 后端默认 true（HTTPS 部署）；纯 HTTP 内网部署时设 false |
+| `MCP_ENABLED` | 否 | 是否启用 MCP 服务，默认 true |
+| `MCP_ALLOWED_HOSTS` | 否 | MCP 的 Host 白名单，默认 `riben.icu,localhost,127.0.0.1`；需包含实际访问域名 |
 | `FRONTEND_SERVERS_CONFIG` | 是（前端） | 前端发布服务器列表，JSON 数组（示例见下） |
 
 `SERVERS_CONFIG`（后端）示例：
@@ -147,8 +153,8 @@ pnpm build          # tsc --noEmit 类型检查 + vite build
 | `SSH_PRIVATE_KEY` | 后端各服务器 deploy 用户的 SSH 私钥（公钥需预先放到对应用户的 `~/.ssh/authorized_keys`） |
 | `DATABASE_URL` | MySQL 连接串，如 `mysql://user:pass@host:3306/riben` |
 | `REDIS_URL` | Redis 连接串，如 `redis://:pass@host:6379` |
-| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | 首次播种的管理员账号（仅首次启动写入） |
-| `ADMIN_API_TOKEN` | 可选，管理员 API Token。**务必用 Secret 配置**：配置后请求头 `x-admin-token: <token>`（或 `Authorization: Bearer <token>`）可绕过登录鉴权，执行全部管理操作；不配置则关闭该能力 |
+| `ADMIN_USERNAME` / `ADMIN_EMAIL` | 首次播种的管理员账号与登录邮箱（邮箱验证码登录，仅首次启动写入） |
+| `ADMIN_API_TOKEN` | 可选，管理员 API Token。**务必用 Secret 配置**：配置后请求头 `x-admin-token: <token>`（或 `Authorization: Bearer <token>`）可绕过登录鉴权，执行全部管理操作（含 MCP）；不配置则关闭该能力 |
 | `FRONTEND_SSH_PRIVATE_KEY` | 前端各服务器 deploy 用户的 SSH 私钥（独立于后端的 `SSH_PRIVATE_KEY`） |
 
 ### 服务器前提
@@ -167,9 +173,24 @@ pnpm build          # tsc --noEmit 类型检查 + vite build
 | `/post.html?p={slug}` | 文章详情 + 留言角 |
 | `/admin.html` | 管理后台（登录后管理文章/评论/标签） |
 | `/api/health` | 健康检查（MySQL / Redis 状态） |
+| `/mcp` | MCP 服务（Streamable HTTP；邮箱登录后管理站点） |
 
 - 详细 API、缓存键设计、里程碑拆解见 [docs/development-plan.md](docs/development-plan.md)；
   智能体（Agent）鉴权与接口调用指南见 [docs/agent-api.md](docs/agent-api.md)。
+
+## MCP 服务
+
+`riben-server` 内置标准 MCP 服务，端点 `/mcp`（Streamable HTTP）。管理员先调用
+`auth_send_email_code` + `auth_login` 完成邮箱验证码登录，之后同一 MCP 会话即可调用
+26 个工具完成文章、评论、标签、统计等管理操作；也支持 `x-admin-token` 请求头直接鉴权。
+
+```bash
+# Claude Code
+claude mcp add --transport http riben https://riben.icu/mcp
+```
+
+完整的客户端配置、登录流程、工具清单、环境变量与排障说明见
+[docs/mcp.md](docs/mcp.md)。
 
 ## 环境变量
 

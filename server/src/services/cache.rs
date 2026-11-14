@@ -110,3 +110,38 @@ pub async fn del(redis: &Option<redis::aio::MultiplexedConnection>, keys: &[Stri
         tracing::warn!(keys = ?keys, error = %e, "redis DEL failed");
     }
 }
+
+/// 按模式批量失效（SCAN + DEL），用于标签改名/删除后清理全部文章详情缓存。
+/// 站点规模很小，SCAN 的成本可以接受；故障仅告警。
+pub async fn del_pattern(redis: &Option<redis::aio::MultiplexedConnection>, pattern: &str) {
+    let Some(mut conn) = redis.as_ref().cloned() else {
+        return;
+    };
+    let mut cursor = "0".to_string();
+    loop {
+        let result: redis::RedisResult<(String, Vec<String>)> = redis::cmd("SCAN")
+            .arg(&cursor)
+            .arg("MATCH")
+            .arg(pattern)
+            .arg("COUNT")
+            .arg(200)
+            .query_async(&mut conn)
+            .await;
+        let (next, keys) = match result {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::warn!(pattern, error = %e, "redis SCAN failed");
+                return;
+            }
+        };
+        if !keys.is_empty() {
+            if let Err(e) = conn.del::<_, ()>(keys).await {
+                tracing::warn!(pattern, error = %e, "redis DEL by pattern failed");
+            }
+        }
+        if next == "0" {
+            break;
+        }
+        cursor = next;
+    }
+}

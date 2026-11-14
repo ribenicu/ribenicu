@@ -4,6 +4,7 @@
 mod config;
 mod db;
 mod error;
+mod mcp;
 mod middleware;
 mod models;
 mod routes;
@@ -82,9 +83,18 @@ async fn main() {
 
     let api = routes::api_router(state.clone());
 
-    let mut app = Router::new()
-        .nest("/api", api)
-        .layer(TraceLayer::new_for_http());
+    let mut app = Router::new().nest("/api", api);
+
+    // MCP 服务：Streamable HTTP，与 REST 共用同一个进程与业务层
+    if cfg.mcp_enabled {
+        tracing::info!("mcp endpoint enabled at /mcp");
+        if cfg.mcp_allowed_hosts.is_empty() {
+            tracing::warn!("MCP_ALLOWED_HOSTS=*：已关闭 Host 校验，仅建议内网调试使用");
+        }
+        app = app.merge(mcp::router(state.clone()));
+    }
+
+    let mut app = app.layer(TraceLayer::new_for_http());
 
     // 可选：由 Rust 托管前端静态资源（FRONTEND_DIR 未设置时由 Caddy/Nginx 托管）
     if let Some(dir) = &cfg.frontend_dir {

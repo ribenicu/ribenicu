@@ -6,11 +6,11 @@ pub mod comment;
 pub mod post;
 
 use crate::middleware::auth::require_auth;
-use crate::models::{self, ok};
+use crate::models;
+use crate::services::system;
 use crate::state::AppState;
 use axum::routing::{get, post};
 use axum::{middleware, Router};
-use serde::Serialize;
 
 pub fn api_router(state: AppState) -> Router {
     let auth_layer = middleware::from_fn_with_state(state.clone(), require_auth);
@@ -50,34 +50,6 @@ pub fn api_router(state: AppState) -> Router {
         .with_state(state)
 }
 
-#[derive(Serialize)]
-pub struct Health {
-    pub mysql: bool,
-    pub redis: bool,
-    pub version: &'static str,
-}
-
-async fn health(state: axum::extract::State<AppState>) -> models::ApiResponse<Health> {
-    let mysql = tokio::time::timeout(
-        std::time::Duration::from_secs(2),
-        sqlx::query("SELECT 1").execute(&state.db),
-    )
-    .await
-    .map(|r| r.is_ok())
-    .unwrap_or(false);
-
-    let redis = if let Some(mut conn) = state.redis.clone() {
-        redis::cmd("PING")
-            .query_async::<String>(&mut conn)
-            .await
-            .is_ok()
-    } else {
-        false
-    };
-
-    ok(Health {
-        mysql,
-        redis,
-        version: env!("CARGO_PKG_VERSION"),
-    })
+async fn health(state: axum::extract::State<AppState>) -> models::ApiResponse<system::Health> {
+    models::ok(system::health(&state).await)
 }

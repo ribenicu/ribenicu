@@ -49,7 +49,7 @@ fn token_from_header(req: &Request) -> Option<String> {
     None
 }
 
-fn tokens_equal(a: &str, b: &str) -> bool {
+pub(crate) fn tokens_equal(a: &str, b: &str) -> bool {
     let (a, b) = (a.as_bytes(), b.as_bytes());
     if a.len() != b.len() {
         return false;
@@ -74,7 +74,7 @@ pub async fn require_auth(
         if let Some(presented) = token_from_header(&req) {
             if tokens_equal(admin_token, &presented) {
                 let user = sqlx::query_as::<_, User>(
-                    "SELECT id, username, password_hash FROM users ORDER BY id ASC LIMIT 1",
+                    "SELECT id, username, email, password_hash FROM users ORDER BY id ASC LIMIT 1",
                 )
                 .fetch_optional(&state.db)
                 .await
@@ -110,16 +110,17 @@ pub async fn require_auth(
     let ttl = (state.config.session_ttl_days * 86400) as i64;
     let _: redis::RedisResult<()> = conn.expire(keys::session(&token), ttl).await;
 
-    let user =
-        sqlx::query_as::<_, User>("SELECT id, username, password_hash FROM users WHERE id = ?")
-            .bind(user_id)
-            .fetch_optional(&state.db)
-            .await
-            .map_err(|e| {
-                tracing::error!(error = %e, "user lookup failed");
-                unauthorized()
-            })?
-            .ok_or_else(unauthorized)?;
+    let user = sqlx::query_as::<_, User>(
+        "SELECT id, username, email, password_hash FROM users WHERE id = ?",
+    )
+    .bind(user_id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "user lookup failed");
+        unauthorized()
+    })?
+    .ok_or_else(unauthorized)?;
 
     req.extensions_mut().insert(AuthUser {
         id: user.id,

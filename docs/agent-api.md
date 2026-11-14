@@ -3,13 +3,18 @@
 > 面向智能体（AI Agent）的接口调用文档。指导智能体如何完成鉴权并调用 riben-server 的 REST API，
 > 覆盖公开接口与管理接口。实现细节见 [development-plan.md](development-plan.md)，代码入口
 > `server/src/routes/mod.rs`、`server/src/middleware/auth.rs`。
+>
+> **优先使用 MCP**：如果客户端支持 Model Context Protocol，直接连接 `/mcp` 即可，
+> 管理员通过邮箱验证码登录后可用 26 个工具完成几乎全部管理操作，
+> 无需自己处理 HTTP 细节。见 [mcp.md](mcp.md)。本文档适用于只能调用 REST 的场景。
 
 ## 1. 服务入口
 
 | 环境 | 地址 | 说明 |
 |---|---|---|
 | 本地开发 | `http://127.0.0.1:9015` | `cargo run` 默认监听 `HOST:PORT`（见 `server/.env`） |
-| 生产 | `https://riben.icu` | Caddy 反代 `/api/*` → riben-server，同源无 CORS |
+| 生产 | `https://riben.icu` | Caddy 反代 `/api/*`、`/mcp` → riben-server，同源无 CORS |
+| MCP | `https://riben.icu/mcp` | Streamable HTTP；见 [mcp.md](mcp.md) |
 
 所有 API 挂载在 `/api` 前缀下，例如健康检查为 `GET /api/health`。
 
@@ -60,7 +65,8 @@ x-admin-token: <token>
 Authorization: Bearer <token>
 ```
 
-- 适用于：`/api/admin/*` 全部接口、`/api/auth/me`、`/api/auth/logout`。
+- 适用于：`/api/admin/*` 全部接口、`/api/auth/me`、`/api/auth/logout`；
+  以及 MCP 端点 `/mcp` 的请求头鉴权（跳过 MCP 会话内的邮箱登录）。
 - 不适用于：不需要鉴权的公开接口（带了也无妨）。
 - token 通过 GitHub Actions Secret（`ADMIN_API_TOKEN`）或服务器 `.env` 注入；
   **切勿提交进仓库、切勿写进日志**。
@@ -211,6 +217,8 @@ curl -s -b cookies.txt https://riben.icu/api/admin/posts
 |---|---|---|
 | GET | `/api/admin/tags` | 全部标签 `TagOut[]`：`{ "id", "name", "color" }` |
 | POST | `/api/admin/tags` | 新建标签，body `{ "name": "日常", "color": "#f7a8b8" }`（name 1–64，color 1–16；重名 409） |
+| PUT | `/api/admin/tags/{id}` | 修改标签，body `{ "name"?: "...", "color"?: "..." }`（至少一个字段） |
+| DELETE | `/api/admin/tags/{id}` | 删除标签（文章关联一并移除，文章保留） |
 
 #### 工具
 

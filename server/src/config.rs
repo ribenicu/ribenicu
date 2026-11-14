@@ -20,6 +20,13 @@ pub struct Config {
     /// `Authorization: Bearer <token>`）携带该值即可绕过登录鉴权，
     /// 以管理员身份调用全部接口；不配置则完全关闭该能力
     pub admin_api_token: Option<String>,
+    /// 是否启用 MCP 服务（Streamable HTTP，挂载在 `/mcp`）
+    pub mcp_enabled: bool,
+    /// MCP 允许的 Host 头（防 DNS rebinding）。默认含本机回环地址，
+    /// 生产环境需追加站点域名；`*` 表示关闭校验（不推荐）
+    pub mcp_allowed_hosts: Vec<String>,
+    /// MCP 允许的浏览器 Origin（留空表示不校验）
+    pub mcp_allowed_origins: Vec<String>,
     /// SMTP 邮件发送配置
     pub smtp_host: Option<String>,
     pub smtp_port: u16,
@@ -45,6 +52,19 @@ impl Config {
 
         let smtp_user = non_empty("SMTP_USER");
 
+        let mcp_hosts = csv_env("MCP_ALLOWED_HOSTS");
+        let mcp_allowed_hosts = if mcp_hosts.iter().any(|h| h == "*") {
+            Vec::new() // 空列表 = 不校验 Host（仅限内网调试）
+        } else {
+            let mut hosts = vec!["localhost".into(), "127.0.0.1".into(), "::1".into()];
+            for host in mcp_hosts {
+                if !hosts.contains(&host) {
+                    hosts.push(host);
+                }
+            }
+            hosts
+        };
+
         Self {
             host: std::env::var("HOST").unwrap_or_else(|_| "0.0.0.0".into()),
             port: std::env::var("PORT")
@@ -66,6 +86,9 @@ impl Config {
             admin_username: non_empty("ADMIN_USERNAME"),
             admin_email: non_empty("ADMIN_EMAIL"),
             admin_api_token: non_empty("ADMIN_API_TOKEN"),
+            mcp_enabled: bool_env("MCP_ENABLED", true),
+            mcp_allowed_hosts,
+            mcp_allowed_origins: csv_env("MCP_ALLOWED_ORIGINS"),
             smtp_host: non_empty("SMTP_HOST"),
             smtp_port: std::env::var("SMTP_PORT")
                 .ok()
@@ -95,4 +118,25 @@ fn non_empty(key: &str) -> Option<String> {
         .ok()
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
+}
+
+/// 逗号分隔的环境变量（自动去空白、去空项）。
+fn csv_env(key: &str) -> Vec<String> {
+    std::env::var(key)
+        .ok()
+        .map(|v| {
+            v.split(',')
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// 布尔环境变量：`false` / `0` 为假，其余为真。
+fn bool_env(key: &str, default: bool) -> bool {
+    std::env::var(key)
+        .map(|v| v != "false" && v != "0")
+        .unwrap_or(default)
 }

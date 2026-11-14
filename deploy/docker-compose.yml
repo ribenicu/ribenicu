@@ -56,7 +56,9 @@ services:
       SESSION_TTL_DAYS: "7"
       COOKIE_SECURE: "true"
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?请在 .env 中设置 ADMIN_PASSWORD}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:?请在 .env 中设置 ADMIN_EMAIL}
+      MCP_ENABLED: ${MCP_ENABLED:-true}
+      MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-riben.icu,localhost,127.0.0.1}
       SEED_DEMO: ${SEED_DEMO:-true}
       RUST_LOG: riben_server=info,tower_http=info,sqlx=warn
       # 静态资源由 Caddy 托管，app 只跑 API，故 FRONTEND_DIR 留空

@@ -19,15 +19,18 @@
 #     ]
 #   SESSION_TTL_DAYS —— 可选，默认 7
 #   COOKIE_SECURE    —— 可选，默认 true（HTTPS 部署）
+#   MCP_ENABLED      —— 可选，默认 true，是否启用 /mcp
+#   MCP_ALLOWED_HOSTS —— 可选，默认 riben.icu,localhost,127.0.0.1；
+#                        MCP 服务的 Host 白名单（防 DNS rebinding）
 #
 # Secrets（Settings → Secrets and variables → Actions → Secrets）：
 #   SSH_PRIVATE_KEY —— 各服务器 deploy 用户的 SSH 私钥（公钥需预先放到对应用户的 authorized_keys）
 #   DATABASE_URL    —— MySQL 连接串，如 mysql://user:pass@host:3306/riben
 #   REDIS_URL       —— Redis 连接串，如 redis://:pass@host:6379
 #   ADMIN_USERNAME  —— 首次播种管理员用户名
-#   ADMIN_PASSWORD  —— 首次播种管理员密码
+#   ADMIN_EMAIL     —— 管理员邮箱（邮箱验证码登录 + MCP 登录使用）
 #   ADMIN_API_TOKEN —— 可选，管理员 API Token；配置后请求头携带该 token
-#                     可绕过登录鉴权执行全部管理操作，务必用 Secret 配置
+#                     可绕过登录鉴权执行全部管理操作（含 MCP 请求头鉴权），务必用 Secret 配置
 #
 # 部署方式：scp 上传二进制到 deploy_path 并原子替换，写入 deploy_path/.env，
 # 优先 systemctl restart riben-server，无 systemd 单元时 pkill + nohup 重启，
@@ -181,10 +184,12 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           REDIS_URL: ${{ secrets.REDIS_URL }}
           ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
           ADMIN_API_TOKEN: ${{ secrets.ADMIN_API_TOKEN }}
           SESSION_TTL_DAYS: ${{ vars.SESSION_TTL_DAYS }}
           COOKIE_SECURE: ${{ vars.COOKIE_SECURE }}
+          MCP_ENABLED: ${{ vars.MCP_ENABLED }}
+          MCP_ALLOWED_HOSTS: ${{ vars.MCP_ALLOWED_HOSTS }}
         run: |
           set -euo pipefail
           NAME=$(jq -r .name     <<< "$SERVER")
@@ -214,10 +219,12 @@ jobs:
             printf 'SESSION_TTL_DAYS=%s\n' "${SESSION_TTL_DAYS:-7}"
             printf 'COOKIE_SECURE=%s\n'    "${COOKIE_SECURE:-true}"
             printf 'ADMIN_USERNAME=%s\n'  "$ADMIN_USERNAME"
-            printf 'ADMIN_PASSWORD=%s\n'  "$ADMIN_PASSWORD"
+            printf 'ADMIN_EMAIL=%s\n'     "$ADMIN_EMAIL"
             if [[ -n "$ADMIN_API_TOKEN" ]]; then
               printf 'ADMIN_API_TOKEN=%s\n' "$ADMIN_API_TOKEN"
             fi
+            printf 'MCP_ENABLED=%s\n'      "${MCP_ENABLED:-true}"
+            printf 'MCP_ALLOWED_HOSTS=%s\n' "${MCP_ALLOWED_HOSTS:-riben.icu,localhost,127.0.0.1}"
             printf 'SEED_DEMO=false\n'
             printf 'RUST_LOG=riben_server=info,tower_http=info,sqlx=warn\n'
           } > .env.deploy

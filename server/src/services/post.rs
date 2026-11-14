@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use crate::error::AppResult;
+use crate::error::{AppError, AppResult};
 use crate::models::post::{ArchiveMonth, HomeData, Post, PostAdmin, PostDetail, PostSummary};
 use crate::models::tag::TagOut;
 use crate::services::cache::{self, keys};
@@ -68,6 +68,105 @@ pub async fn list_all_tags(state: &AppState) -> AppResult<Vec<TagOut>> {
         .collect();
     cache::set_json(&state.redis, &keys::tag_all(), &tags, keys::TTL_TAG_ALL).await;
     Ok(tags)
+}
+
+fn validate_tag(name: &str, color: &str) -> AppResult<()> {
+    let name_len = name.chars().count();
+    if name_len == 0 || name_len > 64 {
+        return Err(AppError::Validation("标签名长度需为 1–64 个字符".into()));
+    }
+    let color_len = color.chars().count();
+    if color_len == 0 || color_len > 16 {
+        return Err(AppError::Validation("标签颜色长度需为 1–16 个字符".into()));
+    }
+    Ok(())
+}
+
+fn unique_tag_error(e: sqlx::Error) -> AppError {
+    match e {
+        sqlx::Error::Database(db_err)
+            if db_err.kind() == sqlx::error::ErrorKind::UniqueViolation =>
+        {
+            AppError::Conflict("标签已存在".into())
+        }
+        other => other.into(),
+    }
+}
+
+pub async fn create_tag(state: &AppState, name: &str, color: &str) -> AppResult<TagOut> {
+    let name = name.trim();
+    let color = color.trim();
+    validate_tag(name, color)?;
+    let result = sqlx::query("INSERT INTO tags (name, color) VALUES (?, ?)")
+        .bind(name)
+        .bind(color)
+        .execute(&state.db)
+        .await
+        .map_err(unique_tag_error)?;
+    cache::del(&state.redis, &[keys::tag_all()]).await;
+    Ok(TagOut {
+        id: result.last_insert_id(),
+        name: name.to_string(),
+        color: color.to_string(),
+    })
+}
+
+pub async fn update_tag(
+    state: &AppState,
+    id: u64,
+    name: Option<&str>,
+    color: Option<&str>,
+) -> AppResult<TagOut> {
+    let old = sqlx::query_as::<_, TagOut>("SELECT id, name, color FROM tags WHERE id = ?")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or_else(|| AppError::NotFound("标签不存在".into()))?;
+
+    let name = name.map(str::trim).unwrap_or(&old.name);
+    let color = color.map(str::trim).unwrap_or(&old.color);
+    validate_tag(name, color)?;
+
+    sqlx::query("UPDATE tags SET name = ?, color = ? WHERE id = ?")
+        .bind(name)
+        .bind(color)
+        .bind(id)
+        .execute(&state.db)
+        .await
+        .map_err(unique_tag_error)?;
+
+    // 标签出现在文章详情、首页、归档与标签列表里，全部失效
+    cache::del(
+        &state.redis,
+        &[keys::tag_all(), keys::post_home(), keys::post_archive()],
+    )
+    .await;
+    cache::del_pattern(&state.redis, "post:detail:*").await;
+
+    Ok(TagOut {
+        id,
+        name: name.to_string(),
+        color: color.to_string(),
+    })
+}
+
+pub async fn delete_tag(state: &AppState, id: u64) -> AppResult<()> {
+    let result = sqlx::query("DELETE FROM tags WHERE id = ?")
+        .bind(id)
+        .execute(&state.db)
+        .await?;
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound("标签不存在".into()));
+    }
+
+    // post_tags 由外键级联删除；文章缓存里的 tags 也要刷新
+    cache::del(
+        &state.redis,
+        &[keys::tag_all(), keys::post_home(), keys::post_archive()],
+    )
+    .await;
+    cache::del_pattern(&state.redis, "post:detail:*").await;
+    Ok(())
 }
 
 // ---------- 公开读（带缓存） ----------
@@ -216,17 +315,48 @@ pub async fn admin_list(
     page: u32,
     per_page: u32,
 ) -> AppResult<(Vec<PostAdmin>, i64)> {
+    admin_list_filtered(state, None, page, per_page).await
+}
+
+/// 管理端文章列表，可选按状态过滤（0 草稿 / 1 已发布）。
+pub async fn admin_list_filtered(
+    state: &AppState,
+    status: Option<i8>,
+    page: u32,
+    per_page: u32,
+) -> AppResult<(Vec<PostAdmin>, i64)> {
     let offset = (page.saturating_sub(1)) * per_page;
-    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM posts")
-        .fetch_one(&state.db)
+    let total: i64 = match status {
+        Some(s) => {
+            sqlx::query_scalar("SELECT COUNT(*) FROM posts WHERE status = ?")
+                .bind(s)
+                .fetch_one(&state.db)
+                .await?
+        }
+        None => {
+            sqlx::query_scalar("SELECT COUNT(*) FROM posts")
+                .fetch_one(&state.db)
+                .await?
+        }
+    };
+    let sql = match status {
+        Some(_) => {
+            "SELECT * FROM posts WHERE status = ? \
+             ORDER BY COALESCE(published_at, created_at) DESC LIMIT ? OFFSET ?"
+        }
+        None => {
+            "SELECT * FROM posts ORDER BY COALESCE(published_at, created_at) DESC LIMIT ? OFFSET ?"
+        }
+    };
+    let mut q = sqlx::query_as::<_, Post>(sql);
+    if let Some(s) = status {
+        q = q.bind(s);
+    }
+    let posts = q
+        .bind(per_page as i64)
+        .bind(offset as i64)
+        .fetch_all(&state.db)
         .await?;
-    let posts = sqlx::query_as::<_, Post>(
-        "SELECT * FROM posts ORDER BY COALESCE(published_at, created_at) DESC LIMIT ? OFFSET ?",
-    )
-    .bind(per_page as i64)
-    .bind(offset as i64)
-    .fetch_all(&state.db)
-    .await?;
     let ids: Vec<u64> = posts.iter().map(|p| p.id).collect();
     let tag_map = tags_for_posts(&state.db, &ids).await?;
     let mut out = Vec::with_capacity(posts.len());
@@ -239,6 +369,39 @@ pub async fn admin_list(
         out.push(p.to_admin(tag_map.get(&p.id).cloned().unwrap_or_default(), count));
     }
     Ok((out, total))
+}
+
+/// 管理端单篇详情（含 Markdown 原文与草稿）。
+pub async fn admin_get(state: &AppState, id: u64) -> AppResult<PostAdmin> {
+    let post = sqlx::query_as::<_, Post>("SELECT * FROM posts WHERE id = ?")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or_else(|| AppError::NotFound("文章不存在".into()))?;
+    let tags = tags_for_post(&state.db, id).await?;
+    let count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM comments WHERE post_id = ? AND status != 2")
+            .bind(id)
+            .fetch_one(&state.db)
+            .await?;
+    Ok(post.to_admin(tags, count))
+}
+
+/// 发布 / 转草稿（保留其余字段）。
+pub async fn set_status(state: &AppState, id: u64, status: i8) -> AppResult<PostAdmin> {
+    let old = admin_get(state, id).await?;
+    update(
+        state,
+        id,
+        PostInput {
+            title: old.title,
+            content_md: old.content_md,
+            sticker: old.sticker,
+            status,
+            tag_ids: old.tags.into_iter().map(|t| t.id).collect(),
+        },
+    )
+    .await
 }
 
 pub struct PostInput {
@@ -344,7 +507,7 @@ pub async fn update(state: &AppState, id: u64, input: PostInput) -> AppResult<Po
 }
 
 pub async fn delete(state: &AppState, id: u64) -> AppResult<()> {
-    let old = sqlx::query_as::<_, Post>("SELECT slug FROM posts WHERE id = ?")
+    let old: Option<String> = sqlx::query_scalar("SELECT slug FROM posts WHERE id = ?")
         .bind(id)
         .fetch_optional(&state.db)
         .await?;
@@ -355,7 +518,7 @@ pub async fn delete(state: &AppState, id: u64) -> AppResult<()> {
         .bind(id)
         .execute(&state.db)
         .await?;
-    invalidate_post_caches(state, Some(&old.slug)).await;
+    invalidate_post_caches(state, Some(&old)).await;
     Ok(())
 }
 

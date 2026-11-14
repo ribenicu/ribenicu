@@ -1,12 +1,15 @@
 # 一本日记 · Caddy 站点配置
-# 站点根目录 = frontend/（静态页面），/api/* 反代到 Rust 服务（同源，无 CORS）
+# 站点根目录 = frontend/（静态页面），/api/* 与 /mcp 反代到 Rust 服务（同源，无 CORS）
 
 {$SITE_ADDRESS:riben.icu}
 
 root * /srv/frontend
 encode zstd gzip
 
-@api path /api/*
-reverse_proxy @api app:9015
+@backend path /api/* /mcp /mcp/*
+reverse_proxy @backend app:9015 {
+    # MCP 使用 SSE 流式响应，禁止代理缓冲
+    flush_interval -1
+}
 
 file_server
