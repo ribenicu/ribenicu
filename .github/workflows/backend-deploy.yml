@@ -241,9 +241,13 @@ jobs:
               && systemctl list-unit-files 2>/dev/null | grep -q '^riben-server'; then
               sudo systemctl restart riben-server
             else
-              pkill -f "$DPATH/riben-server" 2>/dev/null || true
+              # 进程可能是以相对路径 ./riben-server 启动的，按绝对路径匹配杀不掉，
+              # 统一按进程名匹配；随后等待端口释放再以绝对路径启动
+              pkill -f 'riben-server' 2>/dev/null || true
               sleep 1
-              nohup ./riben-server >> app.log 2>&1 &
+              pkill -9 -f 'riben-server' 2>/dev/null || true
+              sleep 1
+              nohup "$DPATH/riben-server" >> app.log 2>&1 &
               disown 2>/dev/null || true
             fi
           REMOTE
