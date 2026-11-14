@@ -17,6 +17,7 @@ riben/
 ├── .github/workflows/ # CI/CD：backend-deploy.yml（后端打包部署）、frontend-deploy.yml（前端构建部署）
 └── docs/
     ├── development-plan.md   # 设计与开发计划（M0–M6 里程碑）
+    ├── agent-setup.md        # 智能体配置指南：RIBENICU_ADMIN_TOKEN 约定 + MCP/REST 接入
     ├── agent-api.md          # REST API 鉴权与调用指南
     └── mcp.md                # MCP 服务：邮箱登录 + 全部管理工具
 ```
