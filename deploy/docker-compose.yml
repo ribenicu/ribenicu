@@ -57,6 +57,7 @@ services:
       COOKIE_SECURE: "true"
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_EMAIL: ${ADMIN_EMAIL:?请在 .env 中设置 ADMIN_EMAIL}
+      ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:?请在 .env 中设置 ADMIN_API_TOKEN}
       MCP_ENABLED: ${MCP_ENABLED:-true}
       MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-riben.icu,localhost,127.0.0.1}
       SEED_DEMO: ${SEED_DEMO:-true}
