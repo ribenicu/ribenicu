@@ -386,7 +386,9 @@ a { color: inherit; text-decoration: none; }
 .footer-icp {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 5px;
+  flex-basis: 100%;
   color: var(--ink-faint);
   text-decoration: none;
 }

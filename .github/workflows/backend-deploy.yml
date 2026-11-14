@@ -134,8 +134,6 @@ jobs:
           cargo build --release --locked
           strip target/release/riben-server
           ls -lh target/release/riben-server
-          strip target/release/riben-server
-          ls -lh target/release/riben-server
 
       - name: 压缩二进制
         run: |
