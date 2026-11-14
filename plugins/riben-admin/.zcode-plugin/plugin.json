@@ -1,0 +1,9 @@
+{
+  "name": "riben-admin",
+  "version": "0.1.0",
+  "description": "管理一本日记博客（riben.icu）：写手账/发文章、草稿与发布、审核与回复评论、管理标签、查看站点数据与健康状态。触发关键词：riben、手账、日记、riben.icu、一本日记。",
+  "author": {
+    "name": "smileyan"
+  },
+  "skills": "./skills"
+}
